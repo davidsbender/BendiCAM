@@ -61,13 +61,13 @@
 			<handler function="OnButtonAddToPartClick" entry="EVT_BUTTON" />
 		</object>
 		<object class="wxCheckBox" name="ID_CHECKBOX1" variable="CheckBoxClosePolylines" member="yes">
-			<label>Close polylines with coinciding ends</label>
+			<label>Close matching endpoints</label>
 			<pos>692,318</pos>
 			<size>205,34</size>
 			<handler function="OnCheckBoxClosePolylinesClick" entry="EVT_CHECKBOX" />
 		</object>
 		<object class="wxStaticText" name="ID_STATICTEXT2" variable="StaticTextConnTol" member="yes">
-			<label>Connection tolerance:</label>
+			<label>Matching Tolerance:</label>
 			<pos>692,358</pos>
 		</object>
 		<object class="wxTextCtrl" name="ID_TEXTCTRL3" variable="TextCtrlConnTolerance" member="yes">

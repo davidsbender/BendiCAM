@@ -37,6 +37,7 @@ public:
 #include <wx/dcbuffer.h>
 #include <wx/graphics.h>
 #include <wx/filename.h>
+#include <wx/splitter.h>
 #include <fstream>
 #include <memory>
 #include <hidsdi.h>
@@ -109,6 +110,13 @@ class BendiCAMFrame: public wxFrame
         //*)
 
         //(*Declarations(BendiCAMFrame)
+        wxSplitterWindow* SplitterMain;
+        wxSplitterWindow* SplitterTop;
+        wxSplitterWindow* SplitterDraw3D;
+        wxPanel* PanelTop;
+        wxPanel* PanelBottom;
+        wxPanel* PanelDrawAnd3D;
+        wxPanel* PanelRight;
         wxPanel* PanelDrawing;
         wxPanel* Panel3D;
         wxStaticBox* StaticBoxLayers;
@@ -144,6 +152,8 @@ class BendiCAMFrame: public wxFrame
         void OnPanel3DMouseMove(wxMouseEvent& event);
         void OnPanel3DMouseWheel(wxMouseEvent& event);
         void OnSize(wxSizeEvent& event);
+        void OnRightPanelSize(wxSizeEvent& event);
+        void OnBottomPanelSize(wxSizeEvent& event);
 
         void UpdatePartButtonStates();
         void RebuildPartsTree();
