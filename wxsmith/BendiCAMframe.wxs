@@ -70,7 +70,8 @@
 			<handler function="OnButtonAddToPartClick" entry="EVT_BUTTON" />
 		</object>
 		<object class="wxCheckBox" name="ID_CHECKBOX1" variable="CheckBoxClosePolylines" member="yes">
-			<label>Close matching endpoints</label>
+			<label>Close Matching Endpoints</label>
+			<checked>1</checked>
 			<pos>692,318</pos>
 			<size>205,34</size>
 			<handler function="OnCheckBoxClosePolylinesClick" entry="EVT_CHECKBOX" />

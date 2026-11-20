@@ -247,8 +247,8 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     TextCtrlDepth = new wxTextCtrl(this, ID_TEXTCTRL2, _T("5.0"), wxPoint(768,264), wxSize(123,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
     ButtonCreatePart = new wxButton(this, ID_BUTTON1, _("Create part"), wxPoint(692,290), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON1"));
     ButtonAddToPart = new wxButton(this, ID_BUTTON2, _("Add to part"), wxPoint(795,290), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON2"));
-    CheckBoxClosePolylines = new wxCheckBox(this, ID_CHECKBOX1, _("Close matching endpoints"), wxPoint(692,318), wxSize(205,34), 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
-    CheckBoxClosePolylines->SetValue(false);
+    CheckBoxClosePolylines = new wxCheckBox(this, ID_CHECKBOX1, _("Close Matching Endpoints"), wxPoint(692,318), wxSize(205,34), 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
+    CheckBoxClosePolylines->SetValue(true);
     StaticTextConnTol = new wxStaticText(this, ID_STATICTEXT2, _("Matching Tolerance:"), wxPoint(692,358), wxDefaultSize, 0, _T("ID_STATICTEXT2"));
     TextCtrlConnTolerance = new wxTextCtrl(this, ID_TEXTCTRL3, _T("0.1"), wxPoint(825,356), wxSize(66,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
     StaticBoxStatus = new wxStaticBox(this, ID_STATICBOX2, _("Status"), wxPoint(24,400), wxSize(879,136), 0, _T("ID_STATICBOX2"));
