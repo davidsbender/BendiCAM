@@ -2622,14 +2622,6 @@ static std::vector<DxfPoint> samplePolygon(const std::vector<DxfPoint>& inPts, i
     return sampled;
 }
 
-struct PathPrimitive {
-    bool isArc = false;
-    bool isCCW = true;
-    DxfPoint startPt;
-    DxfPoint endPt;
-    DxfPoint center;
-};
-
 static bool isFullCircle(const std::vector<DxfPoint>& pts, DxfPoint& outCenter, double& outRadius, bool& outCCW)
 {
     size_t n = pts.size();
@@ -2657,7 +2649,7 @@ static bool isFullCircle(const std::vector<DxfPoint>& pts, DxfPoint& outCenter, 
     }
 
     double r = std::hypot(p1.x - cx, p1.y - cy);
-    if (r < 1e-4) return false;
+    if (r < 1e-4 || r > 500.0) return false;
 
     double tol = std::max(0.02, 0.005 * r);
     for (size_t i = 0; i < n; ++i) {
@@ -2685,17 +2677,29 @@ static bool isFullCircle(const std::vector<DxfPoint>& pts, DxfPoint& outCenter, 
 }
 
 static void emitLoopGCode(std::ofstream& out, const std::vector<DxfPoint>& loop,
-                         double prevZ, double curZ, double feedZ, double feedXY, double retractZ)
+                         double prevZ, double curZ, double feedZ, double feedXY, double retractZ,
+                         double rampAngleDeg, bool isRamping, DxfPoint& currentToolPos, bool& isRetracted)
 {
-    if (loop.empty()) return;
+    if (loop.size() < 2) return;
     char buf[256];
     int numPts = (int)loop.size();
     double startX = loop[0].x;
     double startY = loop[0].y;
 
-    snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
-    snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
-    snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
+    if (isRetracted) {
+        snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
+        snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
+        isRetracted = false;
+        double initialZ = isRamping ? prevZ : curZ;
+        snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", initialZ, feedZ); out << buf;
+        currentToolPos = DxfPoint(startX, startY);
+    } else {
+        double distToStart = std::hypot(startX - currentToolPos.x, startY - currentToolPos.y);
+        if (distToStart > 1e-4) {
+            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f F%.3f\n", startX, startY, feedXY); out << buf;
+            currentToolPos = DxfPoint(startX, startY);
+        }
+    }
 
     DxfPoint center;
     double radius = 0.0;
@@ -2706,134 +2710,56 @@ static void emitLoopGCode(std::ofstream& out, const std::vector<DxfPoint>& loop,
         double J = center.y - startY;
         const char* gCmd = isCCW ? "G3" : "G2";
 
-        snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f Z%.3f I%.3f J%.3f F%.3f\n", gCmd, startX, startY, curZ, I, J, feedZ);
-        out << buf;
+        if (isRamping && std::abs(prevZ - curZ) > 1e-4) {
+            snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f Z%.3f I%.3f J%.3f F%.3f\n", gCmd, startX, startY, curZ, I, J, feedZ);
+            out << buf;
+            snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+            snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f I%.3f J%.3f\n", gCmd, startX, startY, I, J);
+            out << buf;
+        } else {
+            snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+            snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f I%.3f J%.3f\n", gCmd, startX, startY, I, J);
+            out << buf;
+        }
+        currentToolPos = DxfPoint(startX, startY);
+        return;
+    }
 
-        snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY);
-        out << buf;
-        snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f I%.3f J%.3f\n", gCmd, startX, startY, I, J);
-        out << buf;
+    double totLen = 0.0;
+    std::vector<double> segLens(numPts);
+    for (int i = 0; i < numPts; ++i) {
+        int nxt = (i + 1) % numPts;
+        segLens[i] = std::hypot(loop[nxt].x - loop[i].x, loop[nxt].y - loop[i].y);
+        totLen += segLens[i];
+    }
+
+    if (isRamping && std::abs(prevZ - curZ) > 1e-4) {
+        double cumLen = 0.0;
+        for (int i = 0; i < numPts; ++i) {
+            int nxt = (i + 1) % numPts;
+            cumLen += segLens[i];
+            double t = (totLen > 1e-9) ? (cumLen / totLen) : ((double)(i + 1) / numPts);
+            double pz = prevZ + (curZ - prevZ) * t;
+            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n", loop[nxt].x, loop[nxt].y, pz, feedZ);
+            out << buf;
+        }
+
+        snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+        for (int i = 0; i < numPts; ++i) {
+            int nxt = (i + 1) % numPts;
+            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", loop[nxt].x, loop[nxt].y);
+            out << buf;
+        }
     } else {
-        std::vector<PathPrimitive> primitives;
-        int i = 0;
-        while (i < numPts) {
-            int bestJ = i + 1;
-            bool bestIsArc = false;
-            bool bestCCW = true;
-            DxfPoint bestCenter;
-
-            for (int j = i + 2; j <= numPts; ++j) {
-                DxfPoint pStart = loop[i];
-                DxfPoint pEnd = loop[j % numPts];
-                double dx = pEnd.x - pStart.x;
-                double dy = pEnd.y - pStart.y;
-                double len = std::hypot(dx, dy);
-
-                bool isLine = true;
-                if (len < 1e-9) {
-                    isLine = false;
-                } else {
-                    for (int k = i + 1; k < j; ++k) {
-                        DxfPoint pk = loop[k % numPts];
-                        double dist = std::abs(dy * pk.x - dx * pk.y + pEnd.x * pStart.y - pEnd.y * pStart.x) / len;
-                        if (dist > 0.01) { isLine = false; break; }
-                    }
-                }
-
-                if (isLine) {
-                    bestJ = j;
-                    bestIsArc = false;
-                    continue;
-                }
-
-                if (j - i >= 2) {
-                    DxfPoint p1 = loop[i];
-                    DxfPoint p2 = loop[(i + j) / 2 % numPts];
-                    DxfPoint p3 = loop[j % numPts];
-
-                    double A = p2.x - p1.x;
-                    double B = p2.y - p1.y;
-                    double C = p3.x - p1.x;
-                    double D = p3.y - p1.y;
-                    double E = A * (p1.x + p2.x) + B * (p1.y + p2.y);
-                    double F = C * (p1.x + p3.x) + D * (p1.y + p3.y);
-                    double det = 2.0 * (A * D - B * C);
-
-                    if (std::abs(det) > 1e-6) {
-                        double cx = (D * E - B * F) / det;
-                        double cy = (A * F - C * E) / det;
-                        double r = std::hypot(p1.x - cx, p1.y - cy);
-
-                        if (r >= 0.1 && r <= 1000.0) {
-                            double tol = std::max(0.02, 0.005 * r);
-                            bool isArc = true;
-                            for (int k = i + 1; k < j; ++k) {
-                                DxfPoint pk = loop[k % numPts];
-                                double dist = std::hypot(pk.x - cx, pk.y - cy);
-                                if (std::abs(dist - r) > tol) { isArc = false; break; }
-                            }
-                            if (isArc) {
-                                double cross = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
-                                bestJ = j;
-                                bestIsArc = true;
-                                bestCCW = (cross > 0.0);
-                                bestCenter = DxfPoint(cx, cy);
-                                continue;
-                            }
-                        }
-                    }
-                }
-
-                break;
-            }
-
-            PathPrimitive prim;
-            prim.isArc = bestIsArc;
-            prim.isCCW = bestCCW;
-            prim.startPt = loop[i];
-            prim.endPt = loop[bestJ % numPts];
-            prim.center = bestCenter;
-            primitives.push_back(prim);
-
-            i = bestJ;
-        }
-
-        int numPrims = (int)primitives.size();
-        for (int pIdx = 0; pIdx < numPrims; ++pIdx) {
-            const auto& prim = primitives[pIdx];
-            double pz = prevZ + (curZ - prevZ) * ((double)(pIdx + 1) / numPrims);
-            if (prim.isArc) {
-                double I = prim.center.x - prim.startPt.x;
-                double J = prim.center.y - prim.startPt.y;
-                const char* gCmd = prim.isCCW ? "G3" : "G2";
-                snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f Z%.3f I%.3f J%.3f F%.3f\n",
-                         gCmd, prim.endPt.x, prim.endPt.y, pz, I, J, feedZ);
-                out << buf;
-            } else {
-                snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n",
-                         prim.endPt.x, prim.endPt.y, pz, feedZ);
-                out << buf;
-            }
-        }
-
-        snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY);
-        out << buf;
-        for (int pIdx = 0; pIdx < numPrims; ++pIdx) {
-            const auto& prim = primitives[pIdx];
-            if (prim.isArc) {
-                double I = prim.center.x - prim.startPt.x;
-                double J = prim.center.y - prim.startPt.y;
-                const char* gCmd = prim.isCCW ? "G3" : "G2";
-                snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f I%.3f J%.3f\n",
-                         gCmd, prim.endPt.x, prim.endPt.y, I, J);
-                out << buf;
-            } else {
-                snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n",
-                         prim.endPt.x, prim.endPt.y);
-                out << buf;
-            }
+        snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+        for (int i = 0; i < numPts; ++i) {
+            int nxt = (i + 1) % numPts;
+            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", loop[nxt].x, loop[nxt].y);
+            out << buf;
         }
     }
+
+    currentToolPos = DxfPoint(loop.back().x, loop.back().y);
 }
 
 void BendiCAMFrame::GenerateGCode(const wxString& filePath)
@@ -2888,6 +2814,9 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
 
     snprintf(buf, sizeof(buf), "G0 Z%.3f\n\n", retractZ); out << buf;
 
+    DxfPoint currentToolPos(0, 0);
+    bool isRetracted = true;
+
     for (const auto& part : m_parts) {
         out << "( --- Part " << part.id << ": " << part.name << " --- )\n";
 
@@ -2939,53 +2868,37 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                     }
                 }
 
-                std::vector<DxfPoint> L_outer = offsetPolygon(outerPath, -toolRad);
-
-                std::vector<DxfPoint> L_inner;
-                if (hasIsland) {
-                    L_inner = offsetPolygon(innerPath, +toolRad);
-                } else {
-                    double cx = 0, cy = 0;
-                    for (const auto& p : outerPath) { cx += p.x; cy += p.y; }
-                    cx /= outerPath.size();
-                    cy /= outerPath.size();
-
-                    double maxR = 0;
-                    for (const auto& p : outerPath) {
-                        maxR = std::max(maxR, std::hypot(p.x - cx, p.y - cy));
-                    }
-
-                    double scaleInner = (maxR > 1e-4) ? std::min(1.0, toolRad / maxR) : 0.1;
-                    L_inner.reserve(outerPath.size());
-                    for (const auto& p : outerPath) {
-                        L_inner.push_back(DxfPoint(cx + (p.x - cx) * scaleInner, cy + (p.y - cy) * scaleInner));
-                    }
-                }
-
-                int M = std::max({ 36, (int)L_outer.size(), (int)L_inner.size() });
-                std::vector<DxfPoint> L_outer_sampled = samplePolygon(L_outer, M);
-                std::vector<DxfPoint> L_inner_sampled = samplePolygon(L_inner, M);
-
-                double maxDist = 0.0;
-                for (int i = 0; i < M; ++i) {
-                    double d = std::hypot(L_outer_sampled[i].x - L_inner_sampled[i].x, L_outer_sampled[i].y - L_inner_sampled[i].y);
-                    maxDist = std::max(maxDist, d);
-                }
-
                 double stepoverDist = diameter * (stepover / 100.0);
                 if (stepoverDist <= 0.001) stepoverDist = diameter * 0.7;
 
-                int numRings = std::max(1, (int)std::ceil(maxDist / stepoverDist));
                 std::vector<std::vector<DxfPoint>> ringLoops;
+                double origArea = getPolygonArea(outerPath);
 
-                for (int rIdx = 0; rIdx < numRings; ++rIdx) {
-                    double t = (numRings == 1) ? 1.0 : ((double)rIdx / (numRings - 1));
-                    std::vector<DxfPoint> ring(M);
-                    for (int i = 0; i < M; ++i) {
-                        ring[i] = DxfPoint((1.0 - t) * L_inner_sampled[i].x + t * L_outer_sampled[i].x,
-                                           (1.0 - t) * L_inner_sampled[i].y + t * L_outer_sampled[i].y);
+                double currentOffset = -toolRad;
+                while (true) {
+                    std::vector<DxfPoint> ring = offsetPolygon(outerPath, currentOffset);
+                    double ringArea = getPolygonArea(ring);
+
+                    if (ring.size() < 3 || std::abs(ringArea) < 1e-3 || (origArea * ringArea <= 0)) {
+                        break;
                     }
+
                     ringLoops.push_back(ring);
+                    currentOffset -= stepoverDist;
+
+                    if (ringLoops.size() > 500) break;
+                }
+
+                if (ringLoops.empty()) {
+                    std::vector<DxfPoint> ring0 = offsetPolygon(outerPath, -toolRad);
+                    if (!ring0.empty()) ringLoops.push_back(ring0);
+                }
+
+                if (hasIsland) {
+                    std::vector<DxfPoint> islandRing = offsetPolygon(innerPath, +toolRad);
+                    if (!islandRing.empty() && getPolygonArea(islandRing) > 1e-3) {
+                        ringLoops.push_back(islandRing);
+                    }
                 }
 
                 int numPasses = (int)passZLevels.size();
@@ -2998,38 +2911,38 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
 
                     for (size_t ringIdx = 0; ringIdx < ringLoops.size(); ++ringIdx) {
                         const auto& loop = ringLoops[ringIdx];
-                        emitLoopGCode(out, loop, prevZ, curZ, feedZ, feedXY, retractZ);
+                        bool isRamping = (ringIdx == 0);
+                        emitLoopGCode(out, loop, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, isRamping, currentToolPos, isRetracted);
                     }
                 }
             }
         }
 
-        // Outer Profile Contour Milling around Part down to Z = 0 mm
-        out << "( Outer Profile Contour Milling around Part down to Z = 0.000 mm )\n";
-        double targetProfileZ = 0.0;
-        std::vector<double> profilePassZLevels;
-        double pZ = topHeight - stepdown;
-        while (pZ >= targetProfileZ - 1e-4) {
-            profilePassZLevels.push_back(pZ);
-            if (std::abs(pZ - targetProfileZ) < 1e-4) break;
-            pZ -= stepdown;
-            if (pZ < targetProfileZ && pZ > targetProfileZ - stepdown + 1e-4) {
-                pZ = targetProfileZ;
-            }
-        }
-        if (profilePassZLevels.empty() || profilePassZLevels.back() > targetProfileZ + 1e-4) {
-            profilePassZLevels.push_back(targetProfileZ);
-        }
-
-        const CamShape* outerShape = stepShape ? stepShape : (islandShape ? islandShape : nullptr);
+        const CamShape* outerShape = islandShape ? islandShape : (stepShape ? stepShape : nullptr);
         if (outerShape) {
+            double targetProfileZ = (outerShape->depth >= topHeight - 1e-4) ? 0.0 : std::max(0.0, outerShape->depth);
+            snprintf(buf, sizeof(buf), "( Outer Profile Contour Milling around Part down to Z = %.3f mm )\n", targetProfileZ);
+            out << buf;
+
+            std::vector<double> profilePassZLevels;
+            double pZ = topHeight - stepdown;
+            while (pZ >= targetProfileZ - 1e-4) {
+                profilePassZLevels.push_back(pZ);
+                if (std::abs(pZ - targetProfileZ) < 1e-4) break;
+                pZ -= stepdown;
+                if (pZ < targetProfileZ && pZ > targetProfileZ - stepdown + 1e-4) {
+                    pZ = targetProfileZ;
+                }
+            }
+            if (profilePassZLevels.empty() || profilePassZLevels.back() > targetProfileZ + 1e-4) {
+                profilePassZLevels.push_back(targetProfileZ);
+            }
+
             auto outerPaths = getShapeClosedPaths(*outerShape);
             for (const auto& path : outerPaths) {
                 if (path.size() < 3) continue;
 
                 std::vector<DxfPoint> contourPath = offsetPolygon(path, +toolRad);
-                int M = std::max(36, (int)contourPath.size());
-                std::vector<DxfPoint> sampledContour = samplePolygon(contourPath, M);
 
                 int numProfPasses = (int)profilePassZLevels.size();
                 for (int pIdx = 0; pIdx < numProfPasses; ++pIdx) {
@@ -3039,10 +2952,12 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                     snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numProfPasses, curZ);
                     out << buf;
 
-                    emitLoopGCode(out, sampledContour, prevZ, curZ, feedZ, feedXY, retractZ);
+                    emitLoopGCode(out, contourPath, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, true, currentToolPos, isRetracted);
                 }
             }
         }
+
+        isRetracted = true;
     }
 
     out << "\n( End of Job )\n";
