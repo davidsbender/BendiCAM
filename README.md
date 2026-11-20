@@ -1,93 +1,57 @@
 # BendiCAM
 
-The **BendiCAM** is a custom Windows calibration and status utility for the Bendi-Lenki Gamecontroller (Vendor ID `0x04D8`, Product ID `0x0057`). It provides graphical real-time visualizations and updates physical direct input calibration curves inside the Windows Registry.
+**BendiCAM** is a 2.5D CAD/CAM application for Windows built with C++ and **wxWidgets**. It allows users to import CAD drawings (DXF), group entities into 2.5D machining parts and multi-depth shapes, visualize 2D paths and 3D extruded parts, and export optimized **EdingCNC G-code** (`.cnc`).
 
 ---
 
-## Technical Details & Architecture
+## Key Features
 
-### Core Files
-- **`BendiCAMMain.h` & `BendiCAMMain.cpp`**: Main UI window frame, raw input message processor, event router, and timer polling callback logic.
-- **`JoystickCalibration.h` & `src/JoystickCalibration.cpp`**: Low-level abstraction representing axis calibration details (Calib A, Calib B, Calib C) and operations to read/write binary data from/to the Windows Registry.
-- **`include/SteeringWheelCtrl.h`**: Renders the graphical steering wheel representation of the X-axis position.
-- **`include/PositionBarCtrl.h`**: Generates a horizontal or vertical visual indicator bar displaying relative axis positions.
-- **`wxsmith/BendiCAMframe.wxs`**: wxSmith project layout file that defines the GUI structure in Code::Blocks.
+### 1. CAD Drawing Import & Entity Processing
+- **DXF Import**: Parses AutoCAD DXF files (lines, arcs, circles, polylines, splines, ellipses, solids, points).
+- **Layer Control**: Toggle layer visibility with real-time viewport and bounding box updates.
+- **Entity Connection & Tolerance**: Connects coinciding endpoints into closed polyline shapes using configurable matching tolerances.
 
-### Registry Paths & Calibration Mapping
-DirectInput axis calibration values are stored as 12-byte binary structures (representing three 4-byte integers: `min`, `center`, and `max`) in the registry under:
-`HKEY_CURRENT_USER\System\CurrentControlSet\Control\MediaProperties\PrivateProperties\DirectInput\VID_04D8&PID_0057\Calibration\0\Type\Axes\<index>`
+### 2. CAM Part & Shape Hierarchy
+- **Parts & Shapes**: Organize DXF geometry into named CAM parts containing multiple depth shapes.
+- **Interactive 2D Viewport**: Mouse pan, zoom, entity hit-testing, selection highlights, and depth-gradient color fills.
+- **Interactive 3D Viewport**: Real-time 3D solid part rendering with camera orbit rotation, pan, zoom, back-to-front depth sorting, and metallic CAD surface shading.
 
-Where:
-- **Index `0`**: X-Axis (Steering Wheel)
-- **Index `1`**: Y-Axis (Brake Pedal)
-- **Index `2`**: Z-Axis (Throttle Pedal)
+### 3. Tooling & Material Settings
+- **Cutter Parameters**: Tool diameter, spindle RPM, XY feed rate, Z feed rate, stepdown, stepover percentage, and ramp angle.
+- **Material Settings**: Material top height (stock Z reference) and Safe Z retract height.
 
-Writing to these registry keys changes how Windows scales raw input from the controller. To apply calibration changes globally immediately without reconnecting the device, the configurator triggers:
-```cpp
-joyConfigChanged(0);
-```
-It then temporarily re-registers raw input devices using the Windows Raw Input API (`RegisterRawInputDevices`) to refresh system-wide configurations.
+### 4. EdingCNC G-Code Export (`.cnc`)
+- **Island-Preserving Clear Milling**: Clears material down to step depths around raised islands respecting cutter radius offset.
+- **Stepover & Ramp Entry**: Computes stepover ring passes and helical/ramp entry down to target Z levels.
+- **Outer Profile Contour Milling**: Mills single tool-radius-offset contour passes around part perimeters down to Z = 0 mm.
+- **Post-Processing**: Generates EdingCNC-compatible header blocks, spindle control (`M3`/`M5`), feed rates, and program termination (`M30`).
+
+### 5. Project Persistence (`.bcam`)
+- Save and open BendiCAM project files (`.bcam` / `.json`), persisting CAD file references, layer states, part/shape depth hierarchies, and machining parameters.
 
 ---
 
-## Axis-Specific Calibration Details
+## Project Structure
 
-### X Axis (Steering Wheel)
-- **Calibrate Full Left**: Binds the lower end of the X range (`min` / `Calib A`) to the current raw steering position.
-- **Calibrate Center**: Binds the midpoint (`center` / `Calib B`) to the current raw position.
-- **Calibrate Full Right**: Binds the upper end of the X range (`max` / `Calib C`) to the current raw steering position.
-
-### Y Axis (Brake Pedal)
-*Note: The Y-axis UI contains no dedicated "Center" button.*
-- **"Up" / "Down" physical labels**: Refer directly to physical positions of the pedal.
-- **Calibrate Up**: Updates the lower end of the value range (`min` / `Calib A`) with the current raw Y position.
-- **Calibrate Down**: Updates the upper end of the value range (`max` / `Calib C`) with the current raw Y position.
-- **Automatic Center-Calculation**: The center calibration value (`center` / `Calib B`) is always automatically calculated as the exact middle point between the minimum and maximum calibration limits:
-  $$\text{Calib B} = \frac{\text{Calib A} + \text{Calib C}}{2}$$
-
-### Z Axis (Throttle Pedal - Inverted Hardware Configuration)
-*Note: Due to inverted hardware potentiometer characteristics on the Z axis, the logic is adapted to ensure natural physical control mapping.*
-- **Calibrate Up**: Calibrates the **upper end** of the value range (`max` / `Calib C`) using the current raw Z value.
-- **Calibrate Down**: Calibrates the **lower end** of the value range (`min` / `Calib A`) using the current raw Z value.
-- **Automatic Center-Calculation**: Exactly like the Y-axis, the center calibration value is automatically calculated as the exact midpoint:
-  $$\text{Calib B} = \frac{\text{Calib A} + \text{Calib C}}{2}$$
-- **Inverted Display Indicator**: The graphical indicator bar (`positionBarCtrlZ`) displays the inverted relative position computed as:
-  $$\text{Display Position} = 65535 - \text{Raw Position}$$
-  This maps the physical pedal deflection directly to a natural, positive indicator increase (UP deflection fills the bar, DOWN empties it).
+- **`BendiCAMMain.h` & `BendiCAMMain.cpp`**: Main application frame, 2D drawing canvas, 3D part viewport, tree controls, and G-code generator.
+- **`include/DxfParser.h` & `src/DxfParser.cpp`**: DXF parser, layer manager, entity geometry sampler, and pathfinder.
+- **`BendiCAM.cbp` & `Makefile.win`**: Code::Blocks project workspace and MinGW build configuration.
+- **`examples/`**: Sample CAD drawings (`example.dxf`) and project files (`example.bcam`).
 
 ---
 
 ## How to Compile & Build
 
-The project is structured for **Code::Blocks** with the **MinGW** compiler toolchain and **wxWidgets 3.3.x** library.
+Built using **Code::Blocks** or **MinGW** with **wxWidgets 3.x**.
 
-### Option A: From Code::Blocks IDE
-1. Open the project workspace `BendiCAM.cbp` in Code::Blocks.
-2. Select the `Release` target from the build target dropdown menu.
-3. Use the wxSmith resource editor (or build commands directly) to construct and compile.
+### Option A: Code::Blocks IDE
+1. Open `BendiCAM.cbp` in Code::Blocks.
+2. Select the `Release` target.
+3. Click **Build and Run** (`Ctrl+F9`).
 
-### Option B: Command Line (using cbp2make & mingw32-make)
-1. Ensure wxWidgets is extracted or built at `C:\wxWidgets-3.3.1` (or set `WX` environment variable).
-2. Ensure MinGW is available under system path.
-3. Compile using the included Windows Makefile:
-   ```powershell
-   $env:WX = "C:\wxWidgets-3.3.1"
-   $env:PATH = "C:\Program Files\CodeBlocks\MinGW\bin;" + $env:PATH
-   mingw32-make -f Makefile.win release
-   ```
-
----
-
-## Future Extensibility Guide
-
-To add a new axis or a new button control:
-1. **Define the Layout**: Open `wxsmith/BendiCAMframe.wxs` or add standard wxWidgets controls under the target static box container. Ensure all coordinates and size bounds are aligned.
-2. **Setup Identifiers & Declarations**:
-   - In `BendiCAMMain.h`, add unique `wxWindowID` values within the `//(*Identifiers` block.
-   - Declare any pointer to standard wxWidgets structures within the `//(*Declarations` block.
-3. **Register Raw Inputs**:
-   - Inside `BendiCAMMain.cpp`'s `MSWWindowProc` function, retrieve the target Usage Page and Usage ID value of the target axis or button using the Windows HID interface (`HidP_GetUsageValue`).
-4. **Update Polling Callback**:
-   - In `OnTimerTrigger`, request and fetch the corresponding coordinate value (`joyInfo.dwZpos`, `joyInfo.dwRpos`, `joyInfo.dwUpos`, or `joyInfo.dwVpos`) via standard Multimedia SDK methods.
-5. **Update Registry Calibrator**:
-   - To read/write calibration configs for the new axis, instantiate `JoystickCalibration` with the correct axis index offset parameter (e.g., `3` for R-axis / Rudder) and invoke `.write(...)`.
+### Option B: Command Line (MinGW Make)
+Run `mingw32-make` with `Makefile.win`:
+```powershell
+$env:PATH = "C:\Program Files\CodeBlocks\MinGW\bin;" + $env:PATH
+mingw32-make -f Makefile.win release
+```
