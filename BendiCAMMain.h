@@ -110,13 +110,6 @@ class BendiCAMFrame: public wxFrame
         //*)
 
         //(*Declarations(BendiCAMFrame)
-        wxSplitterWindow* SplitterMain;
-        wxSplitterWindow* SplitterTop;
-        wxSplitterWindow* SplitterDraw3D;
-        wxPanel* PanelTop;
-        wxPanel* PanelBottom;
-        wxPanel* PanelDrawAnd3D;
-        wxPanel* PanelRight;
         wxButton* ButtonAddToPart;
         wxButton* ButtonCreatePart;
         wxCheckBox* CheckBoxClosePolylines;
@@ -134,6 +127,15 @@ class BendiCAMFrame: public wxFrame
         wxTimer Timer;
         wxTreeCtrl* TreeCtrlParts;
         //*)
+
+        // Custom Splitter & Panel Members (outside wxSmith block so wxSmith never deletes them)
+        wxSplitterWindow* SplitterMain = nullptr;
+        wxSplitterWindow* SplitterTop = nullptr;
+        wxSplitterWindow* SplitterDraw3D = nullptr;
+        wxPanel* PanelTop = nullptr;
+        wxPanel* PanelBottom = nullptr;
+        wxPanel* PanelDrawAnd3D = nullptr;
+        wxPanel* PanelRight = nullptr;
 
         void OnPanelPaint(wxPaintEvent& event);
         void OnPanelEraseBg(wxEraseEvent& event);
