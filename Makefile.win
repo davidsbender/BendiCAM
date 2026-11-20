@@ -16,7 +16,7 @@ CFLAGS = -Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -DwxUSE_UNICODE
 RESINC = 
 LIBDIR = -L"C:/Program Files/CodeBlocks/MinGW/x86_64-w64-mingw32/lib"
 LIB = -lkernel32 -luser32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lcomctl32 -lwsock32 -lshlwapi -lversion -loleacc -luxtheme -limm32 -lmsimg32 -lgdiplus -lwinmm -lhid
-LDFLAGS = -static-libstdc++ -static-libgcc -static -mthreads
+LDFLAGS = -mthreads
 
 INC_DEBUG = $(INC) -I$(WX)/lib/gcc_lib/mswud -Iinclude
 CFLAGS_DEBUG = $(CFLAGS) -g -D__WXDEBUG__

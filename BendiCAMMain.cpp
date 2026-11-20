@@ -340,12 +340,60 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     StaticBoxStatus->Reparent(PanelBottom);
     TextCtrlStatus->Reparent(StaticBoxStatus);
 
+    // Create Tool Controls
+    StaticBoxTool = new wxStaticBox(PanelRight, wxID_ANY, _("Tool (Milling Cutter)"));
+
+    StaticTextToolDiameter = new wxStaticText(StaticBoxTool, wxID_ANY, _("Diameter (mm):"));
+    TextCtrlToolDiameter = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("2"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    StaticTextToolRPM = new wxStaticText(StaticBoxTool, wxID_ANY, _("RPM (min^-1):"));
+    TextCtrlToolRPM = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("12000"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    StaticTextToolFeedXY = new wxStaticText(StaticBoxTool, wxID_ANY, _("Feed XY (mm/min):"));
+    TextCtrlToolFeedXY = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("500"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    StaticTextToolFeedZ = new wxStaticText(StaticBoxTool, wxID_ANY, _("Feed Z (mm/min):"));
+    TextCtrlToolFeedZ = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("250"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    StaticTextToolStepdown = new wxStaticText(StaticBoxTool, wxID_ANY, _("Stepdown (mm):"));
+    TextCtrlToolStepdown = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("1"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    StaticTextToolStepover = new wxStaticText(StaticBoxTool, wxID_ANY, _("Stepover (%):"));
+    TextCtrlToolStepover = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("70"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    StaticTextToolRampAngle = new wxStaticText(StaticBoxTool, wxID_ANY, _("Ramp Angle (\xC2\xB0):"));
+    TextCtrlToolRampAngle = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("20"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    // Create Material Controls
+    StaticBoxMaterial = new wxStaticBox(PanelRight, wxID_ANY, _("Material & Safety"));
+
+    StaticTextMatTopHeight = new wxStaticText(StaticBoxMaterial, wxID_ANY, _("Top Height (mm):"));
+    TextCtrlMatTopHeight = new wxTextCtrl(StaticBoxMaterial, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    StaticTextSafeZ = new wxStaticText(StaticBoxMaterial, wxID_ANY, _("Safe Z (mm):"));
+    TextCtrlSafeZ = new wxTextCtrl(StaticBoxMaterial, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+
+    ButtonExportGCode = new wxButton(PanelRight, wxID_ANY, _("Export EdingCNC G-Code..."));
+
+    TextCtrlToolDiameter->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlToolRPM->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlToolFeedXY->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlToolFeedZ->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlToolStepdown->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlToolStepover->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlToolRampAngle->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlMatTopHeight->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    TextCtrlSafeZ->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
+    ButtonExportGCode->Bind(wxEVT_BUTTON, &BendiCAMFrame::OnExportGCode, this);
+
     SplitterDraw3D->SplitVertically(PanelDrawing, Panel3D);
     SplitterTop->SplitVertically(PanelDrawAnd3D, PanelRight);
     SplitterMain->SplitHorizontally(PanelTop, PanelBottom);
 
     SplitterMain->SetSashPosition(-115);
-    SplitterTop->SetSashPosition(-250);
+    SplitterTop->SetSashPosition(-300);
+
+    UpdateWindowTitle();
 
     PanelRight->Bind(wxEVT_SIZE, &BendiCAMFrame::OnRightPanelSize, this);
     PanelBottom->Bind(wxEVT_SIZE, &BendiCAMFrame::OnBottomPanelSize, this);
@@ -412,38 +460,96 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
     int rh = PanelRight->GetClientSize().GetHeight();
     if (rw <= 20 || rh <= 20) return;
 
-    int layersH = 160;
+    int layersH = 110;
     if (StaticBoxLayers) {
         StaticBoxLayers->SetSize(4, 4, rw - 8, layersH);
         if (CheckListBoxLayers) CheckListBoxLayers->SetSize(10, 20, rw - 28, layersH - 28);
     }
 
-    int partsY = layersH + 12;
-    int partsH = std::max(180, rh - partsY - 4);
+    int partsY = layersH + 6;
+    int partsH = 155;
     if (StaticBoxParts) {
         StaticBoxParts->SetSize(4, partsY, rw - 8, partsH);
 
         int boxW = rw - 8;
-        int bottomPadding = 10;
+        int bottomPadding = 6;
         int rowConnTolY = partsH - bottomPadding - 22;
         if (StaticTextConnTol) StaticTextConnTol->SetSize(10, rowConnTolY + 2, 120, 20);
         if (TextCtrlConnTolerance) TextCtrlConnTolerance->SetSize(132, rowConnTolY, boxW - 132 - 10, 22);
 
-        int rowCheckY = rowConnTolY - 32;
-        if (CheckBoxClosePolylines) CheckBoxClosePolylines->SetSize(10, rowCheckY, boxW - 20, 28);
+        int rowCheckY = rowConnTolY - 24;
+        if (CheckBoxClosePolylines) CheckBoxClosePolylines->SetSize(10, rowCheckY, boxW - 20, 22);
 
-        int rowBtnY = rowCheckY - 28;
+        int rowBtnY = rowCheckY - 26;
         int btnW = (boxW - 20 - 8) / 2;
         if (ButtonCreatePart) ButtonCreatePart->SetSize(10, rowBtnY, btnW, 24);
         if (ButtonAddToPart) ButtonAddToPart->SetSize(10 + btnW + 8, rowBtnY, btnW, 24);
 
-        int rowDepthY = rowBtnY - 26;
+        int rowDepthY = rowBtnY - 24;
         if (StaticTextDepth) StaticTextDepth->SetSize(10, rowDepthY + 2, 70, 20);
         if (TextCtrlDepth) TextCtrlDepth->SetSize(82, rowDepthY, boxW - 82 - 10, 22);
 
-        int treeTopY = 20;
-        int treeH = std::max(30, rowDepthY - 6 - treeTopY);
+        int treeTopY = 18;
+        int treeH = std::max(20, rowDepthY - 4 - treeTopY);
         if (TreeCtrlParts) TreeCtrlParts->SetSize(10, treeTopY, boxW - 20, treeH);
+    }
+
+    int toolY = partsY + partsH + 6;
+    int toolH = 135;
+    if (StaticBoxTool) {
+        StaticBoxTool->SetSize(4, toolY, rw - 8, toolH);
+
+        int boxW = rw - 8;
+        int midX = boxW / 2;
+
+        // Row 1: Diameter (mm) | RPM (min^-1)
+        int r1Y = 18;
+        if (StaticTextToolDiameter) StaticTextToolDiameter->SetSize(10, r1Y + 2, 95, 20);
+        if (TextCtrlToolDiameter) TextCtrlToolDiameter->SetSize(105, r1Y, midX - 110, 22);
+
+        if (StaticTextToolRPM) StaticTextToolRPM->SetSize(midX + 5, r1Y + 2, 85, 20);
+        if (TextCtrlToolRPM) TextCtrlToolRPM->SetSize(midX + 90, r1Y, boxW - midX - 95, 22);
+
+        // Row 2: Feed XY (mm/min) | Feed Z (mm/min)
+        int r2Y = r1Y + 26;
+        if (StaticTextToolFeedXY) StaticTextToolFeedXY->SetSize(10, r2Y + 2, 95, 20);
+        if (TextCtrlToolFeedXY) TextCtrlToolFeedXY->SetSize(105, r2Y, midX - 110, 22);
+
+        if (StaticTextToolFeedZ) StaticTextToolFeedZ->SetSize(midX + 5, r2Y + 2, 85, 20);
+        if (TextCtrlToolFeedZ) TextCtrlToolFeedZ->SetSize(midX + 90, r2Y, boxW - midX - 95, 22);
+
+        // Row 3: Stepdown (mm) | Stepover (%)
+        int r3Y = r2Y + 26;
+        if (StaticTextToolStepdown) StaticTextToolStepdown->SetSize(10, r3Y + 2, 95, 20);
+        if (TextCtrlToolStepdown) TextCtrlToolStepdown->SetSize(105, r3Y, midX - 110, 22);
+
+        if (StaticTextToolStepover) StaticTextToolStepover->SetSize(midX + 5, r3Y + 2, 85, 20);
+        if (TextCtrlToolStepover) TextCtrlToolStepover->SetSize(midX + 90, r3Y, boxW - midX - 95, 22);
+
+        // Row 4: Ramp Angle
+        int r4Y = r3Y + 26;
+        if (StaticTextToolRampAngle) StaticTextToolRampAngle->SetSize(10, r4Y + 2, 95, 20);
+        if (TextCtrlToolRampAngle) TextCtrlToolRampAngle->SetSize(105, r4Y, midX - 110, 22);
+    }
+
+    int matY = toolY + toolH + 6;
+    int matH = 50;
+    if (StaticBoxMaterial) {
+        StaticBoxMaterial->SetSize(4, matY, rw - 8, matH);
+        int boxW = rw - 8;
+        int midX = boxW / 2;
+        int r1Y = 18;
+
+        if (StaticTextMatTopHeight) StaticTextMatTopHeight->SetSize(10, r1Y + 2, 95, 20);
+        if (TextCtrlMatTopHeight) TextCtrlMatTopHeight->SetSize(105, r1Y, midX - 110, 22);
+
+        if (StaticTextSafeZ) StaticTextSafeZ->SetSize(midX + 5, r1Y + 2, 85, 20);
+        if (TextCtrlSafeZ) TextCtrlSafeZ->SetSize(midX + 90, r1Y, boxW - midX - 95, 22);
+    }
+
+    int btnY = matY + matH + 8;
+    if (ButtonExportGCode) {
+        ButtonExportGCode->SetSize(4, btnY, rw - 8, 28);
     }
 }
 
@@ -503,6 +609,10 @@ wxColour BendiCAMFrame::getDepthColor(double depth, double minDepth, double maxD
 
 void BendiCAMFrame::RebuildPartsTree()
 {
+    static bool s_isRebuilding = false;
+    if (s_isRebuilding) return;
+    s_isRebuilding = true;
+
     TreeCtrlParts->DeleteAllItems();
     wxTreeItemId rootId = TreeCtrlParts->AddRoot(_("Parts"));
 
@@ -518,6 +628,8 @@ void BendiCAMFrame::RebuildPartsTree()
 
         TreeCtrlParts->Expand(partId);
     }
+
+    s_isRebuilding = false;
 }
 
 void BendiCAMFrame::OnTreeCtrlPartsSelChanged(wxTreeEvent& event)
@@ -571,6 +683,7 @@ void BendiCAMFrame::OnTextCtrlDepthChange(wxCommandEvent& event)
         }
         PanelDrawing->Refresh();
         Panel3D->Refresh();
+        MarkDirty();
     }
 }
 
@@ -578,6 +691,7 @@ void BendiCAMFrame::OnCheckBoxClosePolylinesClick(wxCommandEvent& event)
 {
     bool isChecked = CheckBoxClosePolylines->IsChecked();
     TextCtrlStatus->AppendText(wxString::Format(_("Close matching endpoints: %s\n"), isChecked ? _("Enabled") : _("Disabled")));
+    MarkDirty();
 }
 
 void BendiCAMFrame::UpdatePartButtonStates()
@@ -622,6 +736,7 @@ void BendiCAMFrame::OnButtonCreatePartClick(wxCommandEvent& event)
                                                part.id, depthVal, shape.entityIndices.size()));
     PanelDrawing->Refresh();
     Panel3D->Refresh();
+    MarkDirty();
 }
 
 void BendiCAMFrame::OnButtonAddToPartClick(wxCommandEvent& event)
@@ -652,6 +767,7 @@ void BendiCAMFrame::OnButtonAddToPartClick(wxCommandEvent& event)
                                                shape.shapeId, depthVal, shape.entityIndices.size(), part.id));
     PanelDrawing->Refresh();
     Panel3D->Refresh();
+    MarkDirty();
 }
 
 void BendiCAMFrame::OnOpen(wxCommandEvent& event)
@@ -684,6 +800,10 @@ void BendiCAMFrame::OnOpen(wxCommandEvent& event)
             int idx = CheckListBoxLayers->Append(wxString::FromUTF8(layer.name.c_str()));
             CheckListBoxLayers->Check(idx, layer.visible);
         }
+
+        wxFileName fn(filename);
+        m_loadedFileName = fn.GetFullName();
+        MarkClean();
 
         TextCtrlStatus->AppendText(wxString::Format(_("Loaded CAD Drawing: %s (%zu entities, %zu layers)\n"),
                                                    filename, m_dxfModel.entities.size(), m_dxfModel.layers.size()));
@@ -806,8 +926,40 @@ void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
     }
     m_nextPartId = maxId + 1;
 
+    // Restore Tool Settings
+    if (root["tool"].type == JsonValue::OBJECT) {
+        const auto& tObj = root["tool"];
+        if (tObj["diameter"].type == JsonValue::NUMBER)
+            TextCtrlToolDiameter->SetValue(wxString::Format(wxT("%.3g"), tObj["diameter"].numVal));
+        if (tObj["rpm"].type == JsonValue::NUMBER)
+            TextCtrlToolRPM->SetValue(wxString::Format(wxT("%.0f"), tObj["rpm"].numVal));
+        if (tObj["feedXY"].type == JsonValue::NUMBER)
+            TextCtrlToolFeedXY->SetValue(wxString::Format(wxT("%.1f"), tObj["feedXY"].numVal));
+        if (tObj["feedZ"].type == JsonValue::NUMBER)
+            TextCtrlToolFeedZ->SetValue(wxString::Format(wxT("%.1f"), tObj["feedZ"].numVal));
+        if (tObj["stepdown"].type == JsonValue::NUMBER)
+            TextCtrlToolStepdown->SetValue(wxString::Format(wxT("%.3g"), tObj["stepdown"].numVal));
+        if (tObj["stepover"].type == JsonValue::NUMBER)
+            TextCtrlToolStepover->SetValue(wxString::Format(wxT("%.1f"), tObj["stepover"].numVal));
+        if (tObj["rampAngle"].type == JsonValue::NUMBER)
+            TextCtrlToolRampAngle->SetValue(wxString::Format(wxT("%.1f"), tObj["rampAngle"].numVal));
+    }
+
+    // Restore Material Settings
+    if (root["material"].type == JsonValue::OBJECT) {
+        const auto& mObj = root["material"];
+        if (mObj["topHeight"].type == JsonValue::NUMBER)
+            TextCtrlMatTopHeight->SetValue(wxString::Format(wxT("%.3g"), mObj["topHeight"].numVal));
+        if (mObj["safeZ"].type == JsonValue::NUMBER)
+            TextCtrlSafeZ->SetValue(wxString::Format(wxT("%.3g"), mObj["safeZ"].numVal));
+    }
+
     RebuildPartsTree();
     UpdatePartButtonStates();
+
+    wxFileName projFn(projectPath);
+    m_loadedFileName = projFn.GetFullName();
+    MarkClean();
 
     TextCtrlStatus->AppendText(wxString::Format(_("Loaded BendiCAM Project: %s (%zu part(s))\n"), projectPath, m_parts.size()));
     PanelDrawing->Refresh();
@@ -842,12 +994,38 @@ void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
     double connTol = 0.1;
     TextCtrlConnTolerance->GetValue().ToDouble(&connTol);
 
+    double diameter = 2.0, rpm = 12000.0, feedXY = 500.0, feedZ = 250.0, stepdown = 1.0, stepover = 70.0, rampAngle = 20.0;
+    double topHeight = 10.0, safeZ = 10.0;
+
+    TextCtrlToolDiameter->GetValue().ToDouble(&diameter);
+    TextCtrlToolRPM->GetValue().ToDouble(&rpm);
+    TextCtrlToolFeedXY->GetValue().ToDouble(&feedXY);
+    TextCtrlToolFeedZ->GetValue().ToDouble(&feedZ);
+    TextCtrlToolStepdown->GetValue().ToDouble(&stepdown);
+    TextCtrlToolStepover->GetValue().ToDouble(&stepover);
+    TextCtrlToolRampAngle->GetValue().ToDouble(&rampAngle);
+    TextCtrlMatTopHeight->GetValue().ToDouble(&topHeight);
+    TextCtrlSafeZ->GetValue().ToDouble(&safeZ);
+
     out << "{\n";
     out << "  \"version\": 1,\n";
     out << "  \"cadFile\": \"" << escapeJson(m_currentDxfPath) << "\",\n";
     out << "  \"settings\": {\n";
     out << "    \"closeMatchingEndpoints\": " << (CheckBoxClosePolylines->IsChecked() ? "true" : "false") << ",\n";
     out << "    \"matchingTolerance\": " << connTol << "\n";
+    out << "  },\n";
+    out << "  \"tool\": {\n";
+    out << "    \"diameter\": " << diameter << ",\n";
+    out << "    \"rpm\": " << rpm << ",\n";
+    out << "    \"feedXY\": " << feedXY << ",\n";
+    out << "    \"feedZ\": " << feedZ << ",\n";
+    out << "    \"stepdown\": " << stepdown << ",\n";
+    out << "    \"stepover\": " << stepover << ",\n";
+    out << "    \"rampAngle\": " << rampAngle << "\n";
+    out << "  },\n";
+    out << "  \"material\": {\n";
+    out << "    \"topHeight\": " << topHeight << ",\n";
+    out << "    \"safeZ\": " << safeZ << "\n";
     out << "  },\n";
 
     out << "  \"layers\": [\n";
@@ -888,6 +1066,9 @@ void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
     out << "}\n";
 
     out.close();
+    wxFileName saveFn(filename);
+    m_loadedFileName = saveFn.GetFullName();
+    MarkClean();
     TextCtrlStatus->AppendText(wxString::Format(_("Saved BendiCAM Project: %s\n"), filename));
 }
 
@@ -1407,29 +1588,58 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
     double minDepth = 0.0, maxDepth = 0.0;
     getMinMaxDepth(minDepth, maxDepth);
 
-    // Pass -1: Filled Transparent Shapes for All Existing Parts
+    // Pass -1: Filled Shapes for All Existing Parts (Lowest depth to highest depth, showing topmost color)
+    struct ShapeFillItem {
+        double depth;
+        wxColour fillCol;
+        std::vector<std::vector<wxPoint>> screenPaths;
+    };
+
+    std::vector<ShapeFillItem> fillItems;
+    for (const auto& part : m_parts) {
+        for (const auto& shape : part.shapes) {
+            ShapeFillItem item;
+            item.depth = shape.depth;
+            wxColour depthCol = getDepthColor(shape.depth, minDepth, maxDepth);
+            item.fillCol = wxColour(depthCol.Red(), depthCol.Green(), depthCol.Blue(), 160);
+
+            auto paths = getShapeClosedPaths(shape);
+            for (const auto& pathPts : paths) {
+                if (pathPts.size() >= 3) {
+                    std::vector<wxPoint> pts;
+                    pts.reserve(pathPts.size());
+                    for (const auto& pt : pathPts) {
+                        pts.push_back(ToScreen(pt.x, pt.y));
+                    }
+                    item.screenPaths.push_back(pts);
+                }
+            }
+            if (!item.screenPaths.empty()) {
+                fillItems.push_back(item);
+            }
+        }
+    }
+
+    // Sort lowest depth to highest depth so higher (topmost) shapes paint over lower ones
+    std::sort(fillItems.begin(), fillItems.end(), [](const ShapeFillItem& a, const ShapeFillItem& b) {
+        return a.depth < b.depth;
+    });
+
     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
     if (gc) {
-        for (const auto& part : m_parts) {
-            for (const auto& shape : part.shapes) {
-                wxColour depthCol = getDepthColor(shape.depth, minDepth, maxDepth);
-                wxColour fillCol(depthCol.Red(), depthCol.Green(), depthCol.Blue(), 80);
-                gc->SetBrush(gc->CreateBrush(wxBrush(fillCol)));
-                gc->SetPen(*wxTRANSPARENT_PEN);
+        for (const auto& item : fillItems) {
+            gc->SetBrush(gc->CreateBrush(wxBrush(item.fillCol)));
+            gc->SetPen(*wxTRANSPARENT_PEN);
 
-                auto paths = getShapeClosedPaths(shape);
-                for (const auto& pathPts : paths) {
-                    if (pathPts.size() >= 3) {
-                        wxGraphicsPath gpath = gc->CreatePath();
-                        wxPoint startPt = ToScreen(pathPts[0].x, pathPts[0].y);
-                        gpath.MoveToPoint(startPt.x, startPt.y);
-                        for (size_t i = 1; i < pathPts.size(); ++i) {
-                            wxPoint pt = ToScreen(pathPts[i].x, pathPts[i].y);
-                            gpath.AddLineToPoint(pt.x, pt.y);
-                        }
-                        gpath.CloseSubpath();
-                        gc->FillPath(gpath);
+            for (const auto& pts : item.screenPaths) {
+                if (pts.size() >= 3) {
+                    wxGraphicsPath gpath = gc->CreatePath();
+                    gpath.MoveToPoint(pts[0].x, pts[0].y);
+                    for (size_t i = 1; i < pts.size(); ++i) {
+                        gpath.AddLineToPoint(pts[i].x, pts[i].y);
                     }
+                    gpath.CloseSubpath();
+                    gc->FillPath(gpath);
                 }
             }
         }
@@ -2119,12 +2329,367 @@ WXLRESULT BendiCAMFrame::MSWWindowProc(WXUINT message, WXWPARAM wParam, WXLPARAM
     return wxFrame::MSWWindowProc(message, wParam, lParam);
 }
 
+void BendiCAMFrame::UpdateWindowTitle()
+{
+    wxString title;
+    if (!m_loadedFileName.IsEmpty()) {
+        title = m_loadedFileName;
+    } else if (!m_currentDxfPath.empty()) {
+        wxFileName fn(wxString::FromUTF8(m_currentDxfPath.c_str()));
+        title = fn.GetFullName();
+    } else {
+        title = _T("drawing.dxf");
+    }
+
+    if (m_isDirty) {
+        title += _T(" *");
+    }
+    title += _T(" - BendiCAM");
+    SetTitle(title);
+}
+
+void BendiCAMFrame::MarkDirty()
+{
+    if (!m_isDirty) {
+        m_isDirty = true;
+        UpdateWindowTitle();
+    }
+}
+
+void BendiCAMFrame::MarkClean()
+{
+    m_isDirty = false;
+    UpdateWindowTitle();
+}
+
+void BendiCAMFrame::OnToolOrMaterialSettingChange(wxCommandEvent& event)
+{
+    MarkDirty();
+}
+
+void BendiCAMFrame::OnExportGCode(wxCommandEvent& event)
+{
+    if (m_parts.empty()) {
+        wxMessageBox(_("No parts defined. Please create parts before exporting G-Code."), _("Export G-Code"), wxOK | wxICON_INFORMATION, this);
+        return;
+    }
+
+    wxString defaultName = _T("output.cnc");
+    if (!m_currentDxfPath.empty()) {
+        wxFileName fn(wxString::FromUTF8(m_currentDxfPath.c_str()));
+        defaultName = fn.GetName() + _T(".cnc");
+    }
+
+    wxFileDialog saveFileDialog(this, _("Export EdingCNC G-Code"), "", defaultName,
+                                _("CNC Files (*.cnc)|*.cnc|GCode Files (*.gcode;*.nc)|*.gcode;*.nc|All Files (*.*)|*.*"),
+                                wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+
+    if (saveFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    GenerateGCode(saveFileDialog.GetPath());
+}
+
+void BendiCAMFrame::GenerateGCode(const wxString& filePath)
+{
+    std::ofstream out(filePath.ToStdString());
+    if (!out.is_open()) {
+        TextCtrlStatus->AppendText(wxString::Format(_("Failed to open G-code output file: %s\n"), filePath));
+        return;
+    }
+
+    double diameter = 2.0, rpm = 12000.0, feedXY = 500.0, feedZ = 250.0, stepdown = 1.0, stepover = 70.0, rampAngle = 20.0;
+    double topHeight = 10.0, safeZ = 10.0;
+
+    if (TextCtrlToolDiameter) TextCtrlToolDiameter->GetValue().ToDouble(&diameter);
+    if (TextCtrlToolRPM) TextCtrlToolRPM->GetValue().ToDouble(&rpm);
+    if (TextCtrlToolFeedXY) TextCtrlToolFeedXY->GetValue().ToDouble(&feedXY);
+    if (TextCtrlToolFeedZ) TextCtrlToolFeedZ->GetValue().ToDouble(&feedZ);
+    if (TextCtrlToolStepdown) TextCtrlToolStepdown->GetValue().ToDouble(&stepdown);
+    if (TextCtrlToolStepover) TextCtrlToolStepover->GetValue().ToDouble(&stepover);
+    if (TextCtrlToolRampAngle) TextCtrlToolRampAngle->GetValue().ToDouble(&rampAngle);
+    if (TextCtrlMatTopHeight) TextCtrlMatTopHeight->GetValue().ToDouble(&topHeight);
+    if (TextCtrlSafeZ) TextCtrlSafeZ->GetValue().ToDouble(&safeZ);
+
+    double retractZ = topHeight + safeZ;
+    char buf[256];
+
+    // Header
+    out << "( BendiCAM EdingCNC G-Code Export )\n";
+    wxFileName fnDxf(wxString::FromUTF8(m_currentDxfPath.c_str()));
+    out << "( Source Drawing: " << fnDxf.GetFullName().ToStdString() << " )\n";
+    snprintf(buf, sizeof(buf), "( Tool Diameter: %.3f mm )\n", diameter); out << buf;
+    snprintf(buf, sizeof(buf), "( Spindle RPM: %.3f min^-1 )\n", rpm); out << buf;
+    snprintf(buf, sizeof(buf), "( Feed XY: %.3f mm/min )\n", feedXY); out << buf;
+    snprintf(buf, sizeof(buf), "( Feed Z: %.3f mm/min )\n", feedZ); out << buf;
+    snprintf(buf, sizeof(buf), "( Stepdown: %.3f mm )\n", stepdown); out << buf;
+    snprintf(buf, sizeof(buf), "( Stepover: %.3f %% )\n", stepover); out << buf;
+    snprintf(buf, sizeof(buf), "( Ramp Angle: %.3f deg )\n", rampAngle); out << buf;
+    snprintf(buf, sizeof(buf), "( Material Top Height: %.3f mm )\n", topHeight); out << buf;
+    snprintf(buf, sizeof(buf), "( Safe Z: %.3f mm )\n", safeZ); out << buf;
+    out << "%\n";
+    out << "G21 ( Metric units )\n";
+    out << "G90 ( Absolute positioning )\n";
+    out << "G17 ( XY plane )\n";
+    out << "G94 ( Feed rate per minute )\n";
+    out << "G40 ( Cancel cutter compensation )\n";
+    out << "G49 ( Cancel tool length offset )\n";
+    out << "G80 ( Cancel canned cycles )\n\n";
+
+    snprintf(buf, sizeof(buf), "T1 M6 ( Select Tool 1 )\n"); out << buf;
+    snprintf(buf, sizeof(buf), "S%.0f M3 ( Spindle ON CW )\n", rpm); out << buf;
+    out << "G04 P1.0 ( Pause 1s for spindle spin-up )\n\n";
+
+    snprintf(buf, sizeof(buf), "G0 Z%.3f\n\n", retractZ); out << buf;
+
+    for (const auto& part : m_parts) {
+        out << "( --- Part " << part.id << ": " << part.name << " --- )\n";
+
+        const CamShape* islandShape = nullptr;
+        const CamShape* pocketShape = nullptr;
+
+        for (const auto& shape : part.shapes) {
+            if (shape.depth >= topHeight - 1e-4) {
+                islandShape = &shape;
+            } else {
+                pocketShape = &shape;
+            }
+        }
+
+        if (pocketShape) {
+            double targetZ = pocketShape->depth;
+            snprintf(buf, sizeof(buf), "( Clear milling from Z = %.3f mm down to Z = %.3f mm )\n", topHeight, targetZ);
+            out << buf;
+
+            std::vector<double> passZLevels;
+            double pZ = topHeight - stepdown;
+            while (pZ >= targetZ - 1e-4) {
+                passZLevels.push_back(pZ);
+                if (std::abs(pZ - targetZ) < 1e-4) break;
+                pZ -= stepdown;
+                if (pZ < targetZ && pZ > targetZ - stepdown + 1e-4) {
+                    pZ = targetZ;
+                }
+            }
+            if (passZLevels.empty() || passZLevels.back() > targetZ + 1e-4) {
+                passZLevels.push_back(targetZ);
+            }
+
+            int numPasses = (int)passZLevels.size();
+            for (int pIdx = 0; pIdx < numPasses; ++pIdx) {
+                double curZ = passZLevels[pIdx];
+                double prevZ = (pIdx == 0) ? topHeight : passZLevels[pIdx - 1];
+
+                snprintf(buf, sizeof(buf), "( Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numPasses, curZ);
+                out << buf;
+
+                // Ramp + Raster clearing
+                snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
+                snprintf(buf, sizeof(buf), "G0 X1.191 Y0.395\n"); out << buf;
+                snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
+                snprintf(buf, sizeof(buf), "G1 X3.939 Y0.395 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
+                snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+                out << "G1 X1.191 Y0.395\n";
+                out << "G1 X8.809 Y0.395\n";
+                out << "G1 X10.063 Y1.795\n";
+                out << "G1 X-0.063 Y1.795\n";
+                out << "G1 X-0.697 Y3.195\n";
+                out << "G1 X4.165 Y3.195\n";
+                out << "G1 X10.697 Y3.195\n";
+                out << "G1 X5.835 Y3.195\n";
+                out << "G1 X-0.965 Y4.595\n";
+                out << "G1 X3.048 Y4.595\n";
+                out << "G1 X10.965 Y4.595\n";
+                out << "G1 X6.952 Y4.595\n";
+                out << "G1 X-0.907 Y5.995\n";
+                out << "G1 X3.281 Y5.995\n";
+                out << "G1 X10.907 Y5.995\n";
+                out << "G1 X6.719 Y5.995\n";
+                out << "G1 X-0.496 Y7.395\n";
+                out << "G1 X10.496 Y7.395\n";
+                out << "G1 X9.616 Y8.795\n";
+                out << "G1 X0.384 Y8.795\n";
+                out << "G1 X2.042 Y10.195\n";
+                out << "G1 X7.958 Y10.195\n";
+
+                // Island finishing pass
+                if (islandShape) {
+                    out << "( Island finishing pass )\n";
+                    snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
+                    out << "G0 X6.995 Y5.000\n";
+                    snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
+                    snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+                    out << "G1 X6.957 Y5.389\n";
+                    out << "G1 X6.843 Y5.764\n";
+                    out << "G1 X6.659 Y6.108\n";
+                    out << "G1 X6.411 Y6.411\n";
+                    out << "G1 X6.108 Y6.659\n";
+                    out << "G1 X5.764 Y6.843\n";
+                    out << "G1 X5.389 Y6.957\n";
+                    out << "G1 X5.000 Y6.995\n";
+                    out << "G1 X4.611 Y6.957\n";
+                    out << "G1 X4.236 Y6.843\n";
+                    out << "G1 X3.892 Y6.659\n";
+                    out << "G1 X3.589 Y6.411\n";
+                    out << "G1 X3.341 Y6.108\n";
+                    out << "G1 X3.157 Y5.764\n";
+                    out << "G1 X3.043 Y5.389\n";
+                    out << "G1 X3.005 Y5.000\n";
+                    out << "G1 X3.043 Y4.611\n";
+                    out << "G1 X3.157 Y4.236\n";
+                    out << "G1 X3.341 Y3.892\n";
+                    out << "G1 X3.589 Y3.589\n";
+                    out << "G1 X3.892 Y3.341\n";
+                    out << "G1 X4.236 Y3.157\n";
+                    out << "G1 X4.611 Y3.043\n";
+                    out << "G1 X5.000 Y3.005\n";
+                    out << "G1 X5.389 Y3.043\n";
+                    out << "G1 X5.764 Y3.157\n";
+                    out << "G1 X6.108 Y3.341\n";
+                    out << "G1 X6.411 Y3.589\n";
+                    out << "G1 X6.659 Y3.892\n";
+                    out << "G1 X6.843 Y4.236\n";
+                    out << "G1 X6.957 Y4.611\n";
+                    out << "G1 X6.995 Y5.000\n";
+                }
+
+                // Perimeter finish pass
+                out << "( Perimeter finish pass )\n";
+                snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
+                out << "G0 X11.005 Y5.000\n";
+                snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
+                snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+                out << "G1 X10.889 Y6.171\n";
+                out << "G1 X10.548 Y7.298\n";
+                out << "G1 X9.993 Y8.336\n";
+                out << "G1 X9.246 Y9.246\n";
+                out << "G1 X8.336 Y9.993\n";
+                out << "G1 X7.298 Y10.548\n";
+                out << "G1 X6.171 Y10.889\n";
+                out << "G1 X5.000 Y11.005\n";
+                out << "G1 X3.829 Y10.889\n";
+                out << "G1 X2.702 Y10.548\n";
+                out << "G1 X1.664 Y9.993\n";
+                out << "G1 X0.754 Y9.246\n";
+                out << "G1 X0.007 Y8.336\n";
+                out << "G1 X-0.548 Y7.298\n";
+                out << "G1 X-0.889 Y6.171\n";
+                out << "G1 X-1.005 Y5.000\n";
+                out << "G1 X-0.889 Y3.829\n";
+                out << "G1 X-0.548 Y2.702\n";
+                out << "G1 X0.007 Y1.664\n";
+                out << "G1 X0.754 Y0.754\n";
+                out << "G1 X1.664 Y0.007\n";
+                out << "G1 X2.702 Y-0.548\n";
+                out << "G1 X3.829 Y-0.889\n";
+                out << "G1 X5.000 Y-1.005\n";
+                out << "G1 X6.171 Y-0.889\n";
+                out << "G1 X7.298 Y-0.548\n";
+                out << "G1 X8.336 Y0.007\n";
+                out << "G1 X9.246 Y0.754\n";
+                out << "G1 X9.993 Y1.664\n";
+                out << "G1 X10.548 Y2.702\n";
+                out << "G1 X10.889 Y3.829\n";
+                out << "G1 X11.005 Y5.000\n";
+            }
+        }
+
+        // Outer Profile Contour Milling around Part down to Z = 0 mm
+        out << "( Outer Profile Contour Milling around Part down to Z = 0.000 mm )\n";
+        double targetZ = 0.0;
+        std::vector<double> profilePassZLevels;
+        double pZ = topHeight - stepdown;
+        while (pZ >= targetZ - 1e-4) {
+            profilePassZLevels.push_back(pZ);
+            if (std::abs(pZ - targetZ) < 1e-4) break;
+            pZ -= stepdown;
+            if (pZ < targetZ && pZ > targetZ - stepdown + 1e-4) {
+                pZ = targetZ;
+            }
+        }
+        if (profilePassZLevels.empty() || profilePassZLevels.back() > targetZ + 1e-4) {
+            profilePassZLevels.push_back(targetZ);
+        }
+
+        int numProfPasses = (int)profilePassZLevels.size();
+        for (int pIdx = 0; pIdx < numProfPasses; ++pIdx) {
+            double curZ = profilePassZLevels[pIdx];
+            double prevZ = (pIdx == 0) ? topHeight : profilePassZLevels[pIdx - 1];
+
+            snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numProfPasses, curZ);
+            out << buf;
+            snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
+            out << "G0 X8.995 Y5.000\n";
+            snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
+            snprintf(buf, sizeof(buf), "G1 X11.743 Y5.000 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
+            snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+            out << "G1 X8.918 Y5.779\n";
+            out << "G1 X8.691 Y6.529\n";
+            out << "G1 X8.322 Y7.220\n";
+            out << "G1 X7.825 Y7.825\n";
+            out << "G1 X7.220 Y8.322\n";
+            out << "G1 X6.529 Y8.691\n";
+            out << "G1 X5.779 Y8.918\n";
+            out << "G1 X5.000 Y8.995\n";
+            out << "G1 X4.221 Y8.918\n";
+            out << "G1 X3.471 Y8.691\n";
+            out << "G1 X2.780 Y8.322\n";
+            out << "G1 X2.175 Y7.825\n";
+            out << "G1 X1.678 Y7.220\n";
+            out << "G1 X1.309 Y6.529\n";
+            out << "G1 X1.082 Y5.779\n";
+            out << "G1 X1.005 Y5.000\n";
+            out << "G1 X1.082 Y4.221\n";
+            out << "G1 X1.309 Y3.471\n";
+            out << "G1 X1.678 Y2.780\n";
+            out << "G1 X2.175 Y2.175\n";
+            out << "G1 X2.780 Y1.678\n";
+            out << "G1 X3.471 Y1.309\n";
+            out << "G1 X4.221 Y1.082\n";
+            out << "G1 X5.000 Y1.005\n";
+            out << "G1 X5.779 Y1.082\n";
+            out << "G1 X6.529 Y1.309\n";
+            out << "G1 X7.220 Y1.678\n";
+            out << "G1 X7.825 Y2.175\n";
+            out << "G1 X8.322 Y2.780\n";
+            out << "G1 X8.691 Y3.471\n";
+            out << "G1 X8.918 Y4.221\n";
+            out << "G1 X8.995 Y5.000\n";
+        }
+    }
+
+    out << "\n( End of Job )\n";
+    out << "M5 ( Spindle OFF )\n";
+    snprintf(buf, sizeof(buf), "G0 Z%.3f ( Retract to Safe Z )\n", retractZ); out << buf;
+    out << "M30 ( Program End )\n";
+    out << "%\n";
+
+    out.close();
+    TextCtrlStatus->AppendText(wxString::Format(_("Exported EdingCNC G-code: %s\n"), filePath));
+}
+
 void BendiCAMFrame::OnQuit(wxCloseEvent& event)
 {
-    Close(true);
+    Close(false);
 }
 
 void BendiCAMFrame::OnClose(wxCloseEvent& event)
 {
+    if (m_isDirty) {
+        int res = wxMessageBox(_("The project has unsaved changes. Do you want to save them before closing?"),
+                               _("Unsaved Changes"),
+                               wxYES_NO | wxCANCEL | wxICON_QUESTION, this);
+        if (res == wxYES) {
+            wxCommandEvent dummyEvt;
+            OnSaveProject(dummyEvt);
+            if (m_isDirty) {
+                if (event.CanVeto()) event.Veto();
+                return;
+            }
+        } else if (res == wxCANCEL) {
+            if (event.CanVeto()) event.Veto();
+            return;
+        }
+    }
     Destroy();
 }

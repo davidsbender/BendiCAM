@@ -83,6 +83,8 @@ class BendiCAMFrame: public wxFrame
         void OnTreeCtrlPartsSelChanged(wxTreeEvent& event);
         void OnTextCtrlDepthChange(wxCommandEvent& event);
         void OnCheckBoxClosePolylinesClick(wxCommandEvent& event);
+        void OnExportGCode(wxCommandEvent& event);
+        void OnToolOrMaterialSettingChange(wxCommandEvent& event);
         //*)
 
         //(*Identifiers(BendiCAMFrame)
@@ -136,6 +138,39 @@ class BendiCAMFrame: public wxFrame
         wxPanel* PanelBottom = nullptr;
         wxPanel* PanelDrawAnd3D = nullptr;
         wxPanel* PanelRight = nullptr;
+
+        // Custom Tool & Material UI Controls
+        wxStaticBox* StaticBoxTool = nullptr;
+        wxStaticText* StaticTextToolDiameter = nullptr;
+        wxTextCtrl* TextCtrlToolDiameter = nullptr;
+        wxStaticText* StaticTextToolRPM = nullptr;
+        wxTextCtrl* TextCtrlToolRPM = nullptr;
+        wxStaticText* StaticTextToolFeedXY = nullptr;
+        wxTextCtrl* TextCtrlToolFeedXY = nullptr;
+        wxStaticText* StaticTextToolFeedZ = nullptr;
+        wxTextCtrl* TextCtrlToolFeedZ = nullptr;
+        wxStaticText* StaticTextToolStepdown = nullptr;
+        wxTextCtrl* TextCtrlToolStepdown = nullptr;
+        wxStaticText* StaticTextToolStepover = nullptr;
+        wxTextCtrl* TextCtrlToolStepover = nullptr;
+        wxStaticText* StaticTextToolRampAngle = nullptr;
+        wxTextCtrl* TextCtrlToolRampAngle = nullptr;
+
+        wxStaticBox* StaticBoxMaterial = nullptr;
+        wxStaticText* StaticTextMatTopHeight = nullptr;
+        wxTextCtrl* TextCtrlMatTopHeight = nullptr;
+        wxStaticText* StaticTextSafeZ = nullptr;
+        wxTextCtrl* TextCtrlSafeZ = nullptr;
+
+        wxButton* ButtonExportGCode = nullptr;
+
+        bool m_isDirty = false;
+        wxString m_loadedFileName;
+
+        void UpdateWindowTitle();
+        void MarkDirty();
+        void MarkClean();
+        void GenerateGCode(const wxString& filePath);
 
         void OnPanelPaint(wxPaintEvent& event);
         void OnPanelEraseBg(wxEraseEvent& event);
