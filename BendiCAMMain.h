@@ -15,7 +15,6 @@
 #include <wx/checkbox.h>
 #include <wx/checklst.h>
 #include <wx/frame.h>
-#include <wx/listbox.h>
 #include <wx/menu.h>
 #include <wx/panel.h>
 #include <wx/statbox.h>
@@ -118,22 +117,22 @@ class BendiCAMFrame: public wxFrame
         wxPanel* PanelBottom;
         wxPanel* PanelDrawAnd3D;
         wxPanel* PanelRight;
-        wxPanel* PanelDrawing;
-        wxPanel* Panel3D;
-        wxStaticBox* StaticBoxLayers;
-        wxCheckListBox* CheckListBoxLayers;
-        wxStaticBox* StaticBoxParts;
-        wxTreeCtrl* TreeCtrlParts;
-        wxStaticText* StaticTextDepth;
-        wxTextCtrl* TextCtrlDepth;
-        wxButton* ButtonCreatePart;
         wxButton* ButtonAddToPart;
+        wxButton* ButtonCreatePart;
         wxCheckBox* CheckBoxClosePolylines;
-        wxStaticText* StaticTextConnTol;
-        wxTextCtrl* TextCtrlConnTolerance;
+        wxCheckListBox* CheckListBoxLayers;
+        wxPanel* Panel3D;
+        wxPanel* PanelDrawing;
+        wxStaticBox* StaticBoxLayers;
+        wxStaticBox* StaticBoxParts;
         wxStaticBox* StaticBoxStatus;
+        wxStaticText* StaticTextConnTol;
+        wxStaticText* StaticTextDepth;
+        wxTextCtrl* TextCtrlConnTolerance;
+        wxTextCtrl* TextCtrlDepth;
         wxTextCtrl* TextCtrlStatus;
         wxTimer Timer;
+        wxTreeCtrl* TreeCtrlParts;
         //*)
 
         void OnPanelPaint(wxPaintEvent& event);

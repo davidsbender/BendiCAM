@@ -34,9 +34,18 @@
 			<size>223,195</size>
 		</object>
 		<object class="wxTreeCtrl" name="ID_TREECTRL1" variable="TreeCtrlParts" member="yes">
+			<image_list></image_list>
+			<tree_items>
+				<item>TreeCtrlParts</item>
+				<item></item>
+			</tree_items>
+			<items_text>
+				<item2>TreeCtrlParts</item2>
+				<item2></item2>
+			</items_text>
 			<pos>692,212</pos>
 			<size>199,48</size>
-			<style>wxTR_HIDE_ROOT|wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_SINGLE</style>
+			<style>wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_HIDE_ROOT|wxTR_SINGLE</style>
 			<handler function="OnTreeCtrlPartsSelChanged" entry="EVT_TREE_SEL_CHANGED" />
 		</object>
 		<object class="wxStaticText" name="ID_STATICTEXT1" variable="StaticTextDepth" member="yes">

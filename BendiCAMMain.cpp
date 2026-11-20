@@ -235,78 +235,24 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
 
     Create(parent, wxID_ANY, _("BendiCAM"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE|wxBORDER_DOUBLE, _T("wxID_ANY"));
     SetClientSize(wxSize(927,578));
-
-    // 1. Frame main sizer
-    wxBoxSizer* frameSizer = new wxBoxSizer(wxVERTICAL);
-
-    SplitterMain = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
-    SplitterMain->SetMinimumPaneSize(50);
-    SplitterMain->SetSashGravity(1.0); // Top panel gets extra height when frame resizes
-
-    PanelTop = new wxPanel(SplitterMain, wxID_ANY);
-    PanelBottom = new wxPanel(SplitterMain, wxID_ANY);
-
-    frameSizer->Add(SplitterMain, 1, wxEXPAND);
-    SetSizer(frameSizer);
-
-    // 2. Top panel sizer & splitter
-    wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
-    SplitterTop = new wxSplitterWindow(PanelTop, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
-    SplitterTop->SetMinimumPaneSize(100);
-    SplitterTop->SetSashGravity(1.0); // Left drawing area gets extra width, right control panel stays fixed width
-
-    PanelDrawAnd3D = new wxPanel(SplitterTop, wxID_ANY);
-    PanelRight = new wxPanel(SplitterTop, wxID_ANY);
-
-    topSizer->Add(SplitterTop, 1, wxEXPAND);
-    PanelTop->SetSizer(topSizer);
-
-    // 3. Draw & 3D panel sizer & splitter
-    wxBoxSizer* draw3dSizer = new wxBoxSizer(wxVERTICAL);
-    SplitterDraw3D = new wxSplitterWindow(PanelDrawAnd3D, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
-    SplitterDraw3D->SetMinimumPaneSize(50);
-    SplitterDraw3D->SetSashGravity(0.65); // 2D drawing gets 65%, 3D view gets 35%
-
-    PanelDrawing = new wxPanel(SplitterDraw3D, ID_PANEL1, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN|wxTAB_TRAVERSAL, _T("ID_PANEL1"));
+    PanelDrawing = new wxPanel(this, ID_PANEL1, wxPoint(24,24), wxSize(320,360), wxBORDER_SUNKEN|wxTAB_TRAVERSAL|wxVSCROLL|wxHSCROLL, _T("ID_PANEL1"));
     PanelDrawing->SetBackgroundColour(wxColour(255,255,255));
-
-    Panel3D = new wxPanel(SplitterDraw3D, ID_PANEL2, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN|wxTAB_TRAVERSAL, _T("ID_PANEL2"));
+    Panel3D = new wxPanel(this, ID_PANEL2, wxPoint(352,24), wxSize(316,360), wxBORDER_SUNKEN|wxTAB_TRAVERSAL, _T("ID_PANEL2"));
     Panel3D->SetBackgroundColour(wxColour(245,245,250));
-
-    draw3dSizer->Add(SplitterDraw3D, 1, wxEXPAND);
-    PanelDrawAnd3D->SetSizer(draw3dSizer);
-
-    // Right Panel Controls (parented to StaticBoxLayers / StaticBoxParts)
-    StaticBoxLayers = new wxStaticBox(PanelRight, ID_STATICBOX3, _("Layers"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX3"));
-    CheckListBoxLayers = new wxCheckListBox(StaticBoxLayers, ID_CHECKLISTBOX1, wxDefaultPosition, wxDefaultSize, 0, 0, 0, wxDefaultValidator, _T("ID_CHECKLISTBOX1"));
-
-    StaticBoxParts = new wxStaticBox(PanelRight, ID_STATICBOX4, _("Parts"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX4"));
-    TreeCtrlParts = new wxTreeCtrl(StaticBoxParts, ID_TREECTRL1, wxDefaultPosition, wxDefaultSize, wxTR_HIDE_ROOT|wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_SINGLE, wxDefaultValidator, _T("ID_TREECTRL1"));
-    StaticTextDepth = new wxStaticText(StaticBoxParts, ID_STATICTEXT1, _("Depth (mm):"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT1"));
-    TextCtrlDepth = new wxTextCtrl(StaticBoxParts, ID_TEXTCTRL2, _("5.0"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
-    ButtonCreatePart = new wxButton(StaticBoxParts, ID_BUTTON1, _("Create part"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON1"));
-    ButtonAddToPart = new wxButton(StaticBoxParts, ID_BUTTON2, _("Add to part"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
-    CheckBoxClosePolylines = new wxCheckBox(StaticBoxParts, ID_CHECKBOX1, _("Close matching endpoints"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
+    StaticBoxLayers = new wxStaticBox(this, ID_STATICBOX3, _("Layers"), wxPoint(680,24), wxSize(223,170), 0, _T("ID_STATICBOX3"));
+    CheckListBoxLayers = new wxCheckListBox(this, ID_CHECKLISTBOX1, wxPoint(692,44), wxSize(199,140), 0, 0, 0, wxDefaultValidator, _T("ID_CHECKLISTBOX1"));
+    StaticBoxParts = new wxStaticBox(this, ID_STATICBOX4, _("Parts"), wxPoint(680,195), wxSize(223,195), 0, _T("ID_STATICBOX4"));
+    TreeCtrlParts = new wxTreeCtrl(this, ID_TREECTRL1, wxPoint(692,212), wxSize(199,48), wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_HIDE_ROOT|wxTR_SINGLE, wxDefaultValidator, _T("ID_TREECTRL1"));
+    StaticTextDepth = new wxStaticText(this, ID_STATICTEXT1, _("Depth (mm):"), wxPoint(692,266), wxDefaultSize, 0, _T("ID_STATICTEXT1"));
+    TextCtrlDepth = new wxTextCtrl(this, ID_TEXTCTRL2, _T("5.0"), wxPoint(768,264), wxSize(123,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
+    ButtonCreatePart = new wxButton(this, ID_BUTTON1, _("Create part"), wxPoint(692,290), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON1"));
+    ButtonAddToPart = new wxButton(this, ID_BUTTON2, _("Add to part"), wxPoint(795,290), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON2"));
+    CheckBoxClosePolylines = new wxCheckBox(this, ID_CHECKBOX1, _("Close matching endpoints"), wxPoint(692,318), wxSize(205,34), 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
     CheckBoxClosePolylines->SetValue(false);
-    StaticTextConnTol = new wxStaticText(StaticBoxParts, ID_STATICTEXT2, _("Matching Tolerance:"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT2"));
-    TextCtrlConnTolerance = new wxTextCtrl(StaticBoxParts, ID_TEXTCTRL3, _("0.1"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
-
-    // Bottom Panel Controls (parented to StaticBoxStatus)
-    StaticBoxStatus = new wxStaticBox(PanelBottom, ID_STATICBOX2, _("Status"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX2"));
-    TextCtrlStatus = new wxTextCtrl(StaticBoxStatus, ID_TEXTCTRL1, _("Running\n"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
-
-    // Default 3D View smaller than drawing by default (~65% 2D Drawing, ~35% 3D View)
-    int initCenterW = 927 - 240;
-    int initDrawW = (int)(initCenterW * 0.65);
-    SplitterDraw3D->SplitVertically(PanelDrawing, Panel3D, initDrawW);
-
-    SplitterTop->SplitVertically(PanelDrawAnd3D, PanelRight, initCenterW);
-
-    int initTopH = 578 - 130;
-    SplitterMain->SplitHorizontally(PanelTop, PanelBottom, initTopH);
-
-    PanelRight->Bind(wxEVT_SIZE, &BendiCAMFrame::OnRightPanelSize, this);
-    PanelBottom->Bind(wxEVT_SIZE, &BendiCAMFrame::OnBottomPanelSize, this);
+    StaticTextConnTol = new wxStaticText(this, ID_STATICTEXT2, _("Matching Tolerance:"), wxPoint(692,358), wxDefaultSize, 0, _T("ID_STATICTEXT2"));
+    TextCtrlConnTolerance = new wxTextCtrl(this, ID_TEXTCTRL3, _T("0.1"), wxPoint(825,356), wxSize(66,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
+    StaticBoxStatus = new wxStaticBox(this, ID_STATICBOX2, _("Status"), wxPoint(24,400), wxSize(879,136), 0, _T("ID_STATICBOX2"));
+    TextCtrlStatus = new wxTextCtrl(this, ID_TEXTCTRL1, _("Running\n"), wxPoint(40,424), wxSize(847,96), wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
     MenuItemOpen = new wxMenuItem(Menu1, idMenuOpen, _("Open CAD Drawing\tCtrl-O"), _("Open a CAD drawing file"), wxITEM_NORMAL);
@@ -331,7 +277,6 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     Connect(ID_BUTTON1, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnButtonCreatePartClick);
     Connect(ID_BUTTON2, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnButtonAddToPartClick);
     Connect(ID_CHECKBOX1, wxEVT_COMMAND_CHECKBOX_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnCheckBoxClosePolylinesClick);
-    TextCtrlDepth->Connect(wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnTextCtrlDepthChange, NULL, this);
     Connect(idMenuOpen, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnOpen);
     Connect(idMenuOpenProject, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnOpenProject);
     Connect(idMenuSaveProject, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnSaveProject);
@@ -342,6 +287,67 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     //*)
 
     SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+
+    // Configure Splitter Hierarchy and Parent Relationships
+    wxBoxSizer* frameSizer = new wxBoxSizer(wxVERTICAL);
+
+    SplitterMain = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
+    SplitterMain->SetMinimumPaneSize(50);
+    SplitterMain->SetSashGravity(1.0);
+
+    PanelTop = new wxPanel(SplitterMain, wxID_ANY);
+    PanelBottom = new wxPanel(SplitterMain, wxID_ANY);
+
+    frameSizer->Add(SplitterMain, 1, wxEXPAND);
+    SetSizer(frameSizer);
+
+    wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
+    SplitterTop = new wxSplitterWindow(PanelTop, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
+    SplitterTop->SetMinimumPaneSize(100);
+    SplitterTop->SetSashGravity(1.0);
+
+    PanelDrawAnd3D = new wxPanel(SplitterTop, wxID_ANY);
+    PanelRight = new wxPanel(SplitterTop, wxID_ANY);
+
+    topSizer->Add(SplitterTop, 1, wxEXPAND);
+    PanelTop->SetSizer(topSizer);
+
+    wxBoxSizer* draw3dSizer = new wxBoxSizer(wxVERTICAL);
+    SplitterDraw3D = new wxSplitterWindow(PanelDrawAnd3D, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
+    SplitterDraw3D->SetMinimumPaneSize(50);
+    SplitterDraw3D->SetSashGravity(0.65);
+
+    draw3dSizer->Add(SplitterDraw3D, 1, wxEXPAND);
+    PanelDrawAnd3D->SetSizer(draw3dSizer);
+
+    // Re-parent Panels & Groupboxes
+    PanelDrawing->Reparent(SplitterDraw3D);
+    Panel3D->Reparent(SplitterDraw3D);
+
+    StaticBoxLayers->Reparent(PanelRight);
+    CheckListBoxLayers->Reparent(StaticBoxLayers);
+
+    StaticBoxParts->Reparent(PanelRight);
+    TreeCtrlParts->Reparent(StaticBoxParts);
+    StaticTextDepth->Reparent(StaticBoxParts);
+    TextCtrlDepth->Reparent(StaticBoxParts);
+    ButtonCreatePart->Reparent(StaticBoxParts);
+    ButtonAddToPart->Reparent(StaticBoxParts);
+    CheckBoxClosePolylines->Reparent(StaticBoxParts);
+    StaticTextConnTol->Reparent(StaticBoxParts);
+    TextCtrlConnTolerance->Reparent(StaticBoxParts);
+
+    StaticBoxStatus->Reparent(PanelBottom);
+    TextCtrlStatus->Reparent(StaticBoxStatus);
+
+    int initCenterW = 927 - 240;
+    int initDrawW = (int)(initCenterW * 0.65);
+    SplitterDraw3D->SplitVertically(PanelDrawing, Panel3D, initDrawW);
+    SplitterTop->SplitVertically(PanelDrawAnd3D, PanelRight, initCenterW);
+    SplitterMain->SplitHorizontally(PanelTop, PanelBottom, 578 - 130);
+
+    PanelRight->Bind(wxEVT_SIZE, &BendiCAMFrame::OnRightPanelSize, this);
+    PanelBottom->Bind(wxEVT_SIZE, &BendiCAMFrame::OnBottomPanelSize, this);
     PanelDrawing->SetBackgroundStyle(wxBG_STYLE_PAINT);
     PanelDrawing->Bind(wxEVT_PAINT, &BendiCAMFrame::OnPanelPaint, this);
     PanelDrawing->Bind(wxEVT_ERASE_BACKGROUND, &BendiCAMFrame::OnPanelEraseBg, this);

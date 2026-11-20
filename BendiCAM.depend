@@ -2018,11 +2018,11 @@
 1795173027 c:\users\david\desktop\bendicam\bendicamapp.h
 	<wx/app.h>
 
-1795179662 c:\users\david\desktop\bendicam\bendicammain.h
+1795195330 c:\users\david\desktop\bendicam\bendicammain.h
 	<wx/button.h>
+	<wx/checkbox.h>
 	<wx/checklst.h>
 	<wx/frame.h>
-	<wx/listbox.h>
 	<wx/menu.h>
 	<wx/panel.h>
 	<wx/statbox.h>
@@ -2033,6 +2033,12 @@
 	<wx/filedlg.h>
 	<wx/dcclient.h>
 	<wx/dcbuffer.h>
+	<wx/graphics.h>
+	<wx/filename.h>
+	<wx/splitter.h>
+	<wx/sizer.h>
+	<fstream>
+	<memory>
 	<hidsdi.h>
 	<hidpi.h>
 	"DxfParser.h"
@@ -2173,7 +2179,7 @@
 
 1753049580 c:\wxwidgets-3.3.1\include\wx\qt\filedlg.h
 
-1795176955 c:\users\david\desktop\bendicam\include\dxfparser.h
+1795190296 c:\users\david\desktop\bendicam\include\dxfparser.h
 	<vector>
 	<string>
 	<cmath>
@@ -2185,7 +2191,7 @@
 	<set>
 	<queue>
 
-1795177024 source:c:\users\david\desktop\bendicam\src\dxfparser.cpp
+1795190309 source:c:\users\david\desktop\bendicam\src\dxfparser.cpp
 	"DxfParser.h"
 	<iostream>
 	<cctype>
@@ -2266,4 +2272,44 @@
 	<unordered_map>
 
 1753049580 c:\wxwidgets-3.3.1\include\wx\qt\treectrl.h
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\checkbox.h
+	"wx/defs.h"
+	"wx/control.h"
+	"wx/univ/checkbox.h"
+	"wx/msw/checkbox.h"
+	"wx/gtk/checkbox.h"
+	"wx/osx/checkbox.h"
+	"wx/qt/checkbox.h"
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\univ\checkbox.h
+	"wx/button.h"
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\msw\checkbox.h
+	"wx/msw/ownerdrawnbutton.h"
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\msw\ownerdrawnbutton.h
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\gtk\checkbox.h
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\osx\checkbox.h
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\qt\checkbox.h
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\splitter.h
+	"wx/event.h"
+	"wx/generic/splitter.h"
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\generic\splitter.h
+	"wx/window.h"
+	"wx/containr.h"
+	"wx/overlay.h"
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\overlay.h
+	"wx/defs.h"
+	"wx/dcclient.h"
+
+1753049580 c:\wxwidgets-3.3.1\include\wx\sizer.h
+	"wx/defs.h"
+	"wx/window.h"
 
