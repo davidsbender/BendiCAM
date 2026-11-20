@@ -236,29 +236,45 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     Create(parent, wxID_ANY, _("BendiCAM"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE|wxBORDER_DOUBLE, _T("wxID_ANY"));
     SetClientSize(wxSize(927,578));
 
-    // Main horizontal splitter (Top view area vs Bottom status log)
+    // 1. Frame main sizer
+    wxBoxSizer* frameSizer = new wxBoxSizer(wxVERTICAL);
+
     SplitterMain = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
     SplitterMain->SetMinimumPaneSize(50);
+    SplitterMain->SetSashGravity(1.0); // Top panel gets extra height when frame resizes
 
     PanelTop = new wxPanel(SplitterMain, wxID_ANY);
     PanelBottom = new wxPanel(SplitterMain, wxID_ANY);
 
-    // Top vertical splitter (Drawing/3D view area vs Right control panel)
+    frameSizer->Add(SplitterMain, 1, wxEXPAND);
+    SetSizer(frameSizer);
+
+    // 2. Top panel sizer & splitter
+    wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
     SplitterTop = new wxSplitterWindow(PanelTop, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
     SplitterTop->SetMinimumPaneSize(100);
+    SplitterTop->SetSashGravity(1.0); // Left drawing area gets extra width, right control panel stays fixed width
 
     PanelDrawAnd3D = new wxPanel(SplitterTop, wxID_ANY);
     PanelRight = new wxPanel(SplitterTop, wxID_ANY);
 
-    // Drawing/3D vertical splitter (2D Drawing vs 3D Part View)
+    topSizer->Add(SplitterTop, 1, wxEXPAND);
+    PanelTop->SetSizer(topSizer);
+
+    // 3. Draw & 3D panel sizer & splitter
+    wxBoxSizer* draw3dSizer = new wxBoxSizer(wxVERTICAL);
     SplitterDraw3D = new wxSplitterWindow(PanelDrawAnd3D, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3D);
     SplitterDraw3D->SetMinimumPaneSize(50);
+    SplitterDraw3D->SetSashGravity(0.65); // 2D drawing gets 65%, 3D view gets 35%
 
     PanelDrawing = new wxPanel(SplitterDraw3D, ID_PANEL1, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN|wxTAB_TRAVERSAL, _T("ID_PANEL1"));
     PanelDrawing->SetBackgroundColour(wxColour(255,255,255));
 
     Panel3D = new wxPanel(SplitterDraw3D, ID_PANEL2, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN|wxTAB_TRAVERSAL, _T("ID_PANEL2"));
     Panel3D->SetBackgroundColour(wxColour(245,245,250));
+
+    draw3dSizer->Add(SplitterDraw3D, 1, wxEXPAND);
+    PanelDrawAnd3D->SetSizer(draw3dSizer);
 
     // Right Panel Controls (parented to PanelRight)
     StaticBoxLayers = new wxStaticBox(PanelRight, ID_STATICBOX3, _("Layers"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX3"));
@@ -371,14 +387,7 @@ void BendiCAMFrame::OnAbout(wxCommandEvent& event)
 void BendiCAMFrame::OnSize(wxSizeEvent& event)
 {
     event.Skip();
-
-    int w = 0, h = 0;
-    GetClientSize(&w, &h);
-    if (w <= 50 || h <= 50) return;
-
-    if (SplitterMain) {
-        SplitterMain->SetSize(0, 0, w, h);
-    }
+    Layout();
 }
 
 void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)

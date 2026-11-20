@@ -38,6 +38,7 @@ public:
 #include <wx/graphics.h>
 #include <wx/filename.h>
 #include <wx/splitter.h>
+#include <wx/sizer.h>
 #include <fstream>
 #include <memory>
 #include <hidsdi.h>
