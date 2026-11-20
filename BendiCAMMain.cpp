@@ -276,23 +276,24 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     draw3dSizer->Add(SplitterDraw3D, 1, wxEXPAND);
     PanelDrawAnd3D->SetSizer(draw3dSizer);
 
-    // Right Panel Controls (parented to PanelRight)
+    // Right Panel Controls (parented to StaticBoxLayers / StaticBoxParts)
     StaticBoxLayers = new wxStaticBox(PanelRight, ID_STATICBOX3, _("Layers"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX3"));
-    CheckListBoxLayers = new wxCheckListBox(PanelRight, ID_CHECKLISTBOX1, wxDefaultPosition, wxDefaultSize, 0, 0, 0, wxDefaultValidator, _T("ID_CHECKLISTBOX1"));
-    StaticBoxParts = new wxStaticBox(PanelRight, ID_STATICBOX4, _("Parts"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX4"));
-    TreeCtrlParts = new wxTreeCtrl(PanelRight, ID_TREECTRL1, wxDefaultPosition, wxDefaultSize, wxTR_HIDE_ROOT|wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_SINGLE, wxDefaultValidator, _T("ID_TREECTRL1"));
-    StaticTextDepth = new wxStaticText(PanelRight, ID_STATICTEXT1, _("Depth (mm):"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT1"));
-    TextCtrlDepth = new wxTextCtrl(PanelRight, ID_TEXTCTRL2, _("5.0"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
-    ButtonCreatePart = new wxButton(PanelRight, ID_BUTTON1, _("Create part"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON1"));
-    ButtonAddToPart = new wxButton(PanelRight, ID_BUTTON2, _("Add to part"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
-    CheckBoxClosePolylines = new wxCheckBox(PanelRight, ID_CHECKBOX1, _("Close matching endpoints"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
-    CheckBoxClosePolylines->SetValue(false);
-    StaticTextConnTol = new wxStaticText(PanelRight, ID_STATICTEXT2, _("Matching Tolerance:"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT2"));
-    TextCtrlConnTolerance = new wxTextCtrl(PanelRight, ID_TEXTCTRL3, _("0.1"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
+    CheckListBoxLayers = new wxCheckListBox(StaticBoxLayers, ID_CHECKLISTBOX1, wxDefaultPosition, wxDefaultSize, 0, 0, 0, wxDefaultValidator, _T("ID_CHECKLISTBOX1"));
 
-    // Bottom Panel Controls (parented to PanelBottom)
+    StaticBoxParts = new wxStaticBox(PanelRight, ID_STATICBOX4, _("Parts"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX4"));
+    TreeCtrlParts = new wxTreeCtrl(StaticBoxParts, ID_TREECTRL1, wxDefaultPosition, wxDefaultSize, wxTR_HIDE_ROOT|wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_SINGLE, wxDefaultValidator, _T("ID_TREECTRL1"));
+    StaticTextDepth = new wxStaticText(StaticBoxParts, ID_STATICTEXT1, _("Depth (mm):"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT1"));
+    TextCtrlDepth = new wxTextCtrl(StaticBoxParts, ID_TEXTCTRL2, _("5.0"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
+    ButtonCreatePart = new wxButton(StaticBoxParts, ID_BUTTON1, _("Create part"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON1"));
+    ButtonAddToPart = new wxButton(StaticBoxParts, ID_BUTTON2, _("Add to part"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
+    CheckBoxClosePolylines = new wxCheckBox(StaticBoxParts, ID_CHECKBOX1, _("Close matching endpoints"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
+    CheckBoxClosePolylines->SetValue(false);
+    StaticTextConnTol = new wxStaticText(StaticBoxParts, ID_STATICTEXT2, _("Matching Tolerance:"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT2"));
+    TextCtrlConnTolerance = new wxTextCtrl(StaticBoxParts, ID_TEXTCTRL3, _("0.1"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
+
+    // Bottom Panel Controls (parented to StaticBoxStatus)
     StaticBoxStatus = new wxStaticBox(PanelBottom, ID_STATICBOX2, _("Status"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICBOX2"));
-    TextCtrlStatus = new wxTextCtrl(PanelBottom, ID_TEXTCTRL1, _("Running\n"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
+    TextCtrlStatus = new wxTextCtrl(StaticBoxStatus, ID_TEXTCTRL1, _("Running\n"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
 
     // Default 3D View smaller than drawing by default (~65% 2D Drawing, ~35% 3D View)
     int initCenterW = 927 - 240;
@@ -399,33 +400,38 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
     if (rw <= 20 || rh <= 20) return;
 
     int layersH = 160;
-    if (StaticBoxLayers) StaticBoxLayers->SetSize(4, 4, rw - 8, layersH);
-    if (CheckListBoxLayers) CheckListBoxLayers->SetSize(12, 22, rw - 24, layersH - 28);
+    if (StaticBoxLayers) {
+        StaticBoxLayers->SetSize(4, 4, rw - 8, layersH);
+        if (CheckListBoxLayers) CheckListBoxLayers->SetSize(10, 20, rw - 28, layersH - 28);
+    }
 
     int partsY = layersH + 12;
     int partsH = std::max(180, rh - partsY - 4);
-    if (StaticBoxParts) StaticBoxParts->SetSize(4, partsY, rw - 8, partsH);
+    if (StaticBoxParts) {
+        StaticBoxParts->SetSize(4, partsY, rw - 8, partsH);
 
-    int bottomPadding = 10;
-    int rowConnTolY = partsY + partsH - bottomPadding - 22;
-    if (StaticTextConnTol) StaticTextConnTol->SetSize(12, rowConnTolY + 2, 125, 20);
-    if (TextCtrlConnTolerance) TextCtrlConnTolerance->SetSize(138, rowConnTolY, rw - 138 - 12, 22);
+        int boxW = rw - 8;
+        int bottomPadding = 10;
+        int rowConnTolY = partsH - bottomPadding - 22;
+        if (StaticTextConnTol) StaticTextConnTol->SetSize(10, rowConnTolY + 2, 120, 20);
+        if (TextCtrlConnTolerance) TextCtrlConnTolerance->SetSize(132, rowConnTolY, boxW - 132 - 10, 22);
 
-    int rowCheckY = rowConnTolY - 32;
-    if (CheckBoxClosePolylines) CheckBoxClosePolylines->SetSize(12, rowCheckY, rw - 24, 28);
+        int rowCheckY = rowConnTolY - 32;
+        if (CheckBoxClosePolylines) CheckBoxClosePolylines->SetSize(10, rowCheckY, boxW - 20, 28);
 
-    int rowBtnY = rowCheckY - 28;
-    int btnW = (rw - 24 - 8) / 2;
-    if (ButtonCreatePart) ButtonCreatePart->SetSize(12, rowBtnY, btnW, 24);
-    if (ButtonAddToPart) ButtonAddToPart->SetSize(12 + btnW + 8, rowBtnY, btnW, 24);
+        int rowBtnY = rowCheckY - 28;
+        int btnW = (boxW - 20 - 8) / 2;
+        if (ButtonCreatePart) ButtonCreatePart->SetSize(10, rowBtnY, btnW, 24);
+        if (ButtonAddToPart) ButtonAddToPart->SetSize(10 + btnW + 8, rowBtnY, btnW, 24);
 
-    int rowDepthY = rowBtnY - 26;
-    if (StaticTextDepth) StaticTextDepth->SetSize(12, rowDepthY + 2, 75, 20);
-    if (TextCtrlDepth) TextCtrlDepth->SetSize(85, rowDepthY, rw - 85 - 12, 22);
+        int rowDepthY = rowBtnY - 26;
+        if (StaticTextDepth) StaticTextDepth->SetSize(10, rowDepthY + 2, 70, 20);
+        if (TextCtrlDepth) TextCtrlDepth->SetSize(82, rowDepthY, boxW - 82 - 10, 22);
 
-    int treeTopY = partsY + 20;
-    int treeH = std::max(30, rowDepthY - 6 - treeTopY);
-    if (TreeCtrlParts) TreeCtrlParts->SetSize(12, treeTopY, rw - 24, treeH);
+        int treeTopY = 20;
+        int treeH = std::max(30, rowDepthY - 6 - treeTopY);
+        if (TreeCtrlParts) TreeCtrlParts->SetSize(10, treeTopY, boxW - 20, treeH);
+    }
 }
 
 void BendiCAMFrame::OnBottomPanelSize(wxSizeEvent& event)
@@ -436,8 +442,10 @@ void BendiCAMFrame::OnBottomPanelSize(wxSizeEvent& event)
     int bh = PanelBottom->GetClientSize().GetHeight();
     if (bw <= 20 || bh <= 20) return;
 
-    if (StaticBoxStatus) StaticBoxStatus->SetSize(4, 4, bw - 8, bh - 8);
-    if (TextCtrlStatus) TextCtrlStatus->SetSize(12, 22, bw - 24, bh - 28);
+    if (StaticBoxStatus) {
+        StaticBoxStatus->SetSize(4, 4, bw - 8, bh - 8);
+        if (TextCtrlStatus) TextCtrlStatus->SetSize(10, 20, bw - 28, bh - 28);
+    }
 }
 
 void BendiCAMFrame::getMinMaxDepth(double& minDepth, double& maxDepth) const
