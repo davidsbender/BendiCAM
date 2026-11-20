@@ -43,6 +43,155 @@ wxString wxbuildinfo(wxbuildinfoformat format)
     return wxbuild;
 }
 
+static std::string escapeJson(const std::string& s) {
+    std::string res;
+    for (char c : s) {
+        if (c == '\\') res += "\\\\";
+        else if (c == '"') res += "\\\"";
+        else if (c == '\n') res += "\\n";
+        else if (c == '\r') res += "\\r";
+        else if (c == '\t') res += "\\t";
+        else res += c;
+    }
+    return res;
+}
+
+struct JsonValue {
+    enum Type { NUL, BOOL, NUMBER, STRING, ARRAY, OBJECT } type = NUL;
+    bool boolVal = false;
+    double numVal = 0.0;
+    std::string strVal;
+    std::vector<JsonValue> arrVal;
+    std::map<std::string, JsonValue> objVal;
+
+    const JsonValue& operator[](const std::string& key) const {
+        static JsonValue nullVal;
+        if (type == OBJECT) {
+            auto it = objVal.find(key);
+            if (it != objVal.end()) return it->second;
+        }
+        return nullVal;
+    }
+    const JsonValue& operator[](size_t idx) const {
+        static JsonValue nullVal;
+        if (type == ARRAY && idx < arrVal.size()) return arrVal[idx];
+        return nullVal;
+    }
+};
+
+class JsonParser {
+    std::string src;
+    size_t pos = 0;
+
+    void skipWhitespace() {
+        while (pos < src.size() && (src[pos] == ' ' || src[pos] == '\t' || src[pos] == '\n' || src[pos] == '\r')) {
+            pos++;
+        }
+    }
+
+public:
+    JsonValue parse(const std::string& jsonText) {
+        src = jsonText;
+        pos = 0;
+        skipWhitespace();
+        return parseValue();
+    }
+
+private:
+    JsonValue parseValue() {
+        skipWhitespace();
+        if (pos >= src.size()) return JsonValue();
+        char c = src[pos];
+        if (c == '{') return parseObject();
+        if (c == '[') return parseArray();
+        if (c == '"') return parseString();
+        if (c == 't' || c == 'f') return parseBool();
+        if (c == '-' || (c >= '0' && c <= '9')) return parseNumber();
+        return JsonValue();
+    }
+
+    JsonValue parseObject() {
+        JsonValue val;
+        val.type = JsonValue::OBJECT;
+        pos++;
+        skipWhitespace();
+        if (pos < src.size() && src[pos] == '}') { pos++; return val; }
+        while (pos < src.size()) {
+            skipWhitespace();
+            if (src[pos] != '"') break;
+            JsonValue keyVal = parseString();
+            skipWhitespace();
+            if (pos < src.size() && src[pos] == ':') pos++;
+            JsonValue childVal = parseValue();
+            val.objVal[keyVal.strVal] = childVal;
+            skipWhitespace();
+            if (pos < src.size() && src[pos] == ',') pos++;
+            else if (pos < src.size() && src[pos] == '}') { pos++; break; }
+        }
+        return val;
+    }
+
+    JsonValue parseArray() {
+        JsonValue val;
+        val.type = JsonValue::ARRAY;
+        pos++;
+        skipWhitespace();
+        if (pos < src.size() && src[pos] == ']') { pos++; return val; }
+        while (pos < src.size()) {
+            val.arrVal.push_back(parseValue());
+            skipWhitespace();
+            if (pos < src.size() && src[pos] == ',') pos++;
+            else if (pos < src.size() && src[pos] == ']') { pos++; break; }
+        }
+        return val;
+    }
+
+    JsonValue parseString() {
+        JsonValue val;
+        val.type = JsonValue::STRING;
+        pos++;
+        std::string s;
+        while (pos < src.size()) {
+            char c = src[pos++];
+            if (c == '"') break;
+            if (c == '\\' && pos < src.size()) {
+                char esc = src[pos++];
+                if (esc == '"') s += '"';
+                else if (esc == '\\') s += '\\';
+                else if (esc == 'n') s += '\n';
+                else if (esc == 'r') s += '\r';
+                else if (esc == 't') s += '\t';
+                else s += esc;
+            } else {
+                s += c;
+            }
+        }
+        val.strVal = s;
+        return val;
+    }
+
+    JsonValue parseBool() {
+        JsonValue val;
+        val.type = JsonValue::BOOL;
+        if (src.compare(pos, 4, "true") == 0) { val.boolVal = true; pos += 4; }
+        else if (src.compare(pos, 5, "false") == 0) { val.boolVal = false; pos += 5; }
+        return val;
+    }
+
+    JsonValue parseNumber() {
+        JsonValue val;
+        val.type = JsonValue::NUMBER;
+        size_t start = pos;
+        if (src[pos] == '-') pos++;
+        while (pos < src.size() && ((src[pos] >= '0' && src[pos] <= '9') || src[pos] == '.' || src[pos] == 'e' || src[pos] == 'E' || src[pos] == '+' || src[pos] == '-')) {
+            pos++;
+        }
+        std::string numStr = src.substr(start, pos - start);
+        val.numVal = std::atof(numStr.c_str());
+        return val;
+    }
+};
+
 //(*IdInit(BendiCAMFrame)
 const wxWindowID BendiCAMFrame::ID_PANEL1 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_PANEL2 = wxNewId();
@@ -55,9 +204,13 @@ const wxWindowID BendiCAMFrame::ID_TEXTCTRL2 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_BUTTON1 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_BUTTON2 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_CHECKBOX1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT2 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL3 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_STATICBOX2 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL1 = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuOpen = wxNewId();
+const wxWindowID BendiCAMFrame::idMenuOpenProject = wxNewId();
+const wxWindowID BendiCAMFrame::idMenuSaveProject = wxNewId();
 const wxWindowID BendiCAMFrame::ID_MENUITEM1 = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuAbout = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TIMER = wxNewId();
@@ -77,6 +230,8 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     wxMenuItem* MenuItem1;
     wxMenuItem* MenuItem2;
     wxMenuItem* MenuItemOpen;
+    wxMenuItem* MenuItemOpenProject;
+    wxMenuItem* MenuItemSaveProject;
 
     Create(parent, wxID_ANY, _("BendiCAM"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE|wxBORDER_DOUBLE, _T("wxID_ANY"));
     SetClientSize(wxSize(927,578));
@@ -86,20 +241,26 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     Panel3D->SetBackgroundColour(wxColour(245,245,250));
     StaticBoxLayers = new wxStaticBox(this, ID_STATICBOX3, _("Layers"), wxPoint(680,24), wxSize(223,170), 0, _T("ID_STATICBOX3"));
     CheckListBoxLayers = new wxCheckListBox(this, ID_CHECKLISTBOX1, wxPoint(692,44), wxSize(199,140), 0, 0, 0, wxDefaultValidator, _T("ID_CHECKLISTBOX1"));
-    StaticBoxParts = new wxStaticBox(this, ID_STATICBOX4, _("Parts"), wxPoint(680,200), wxSize(223,184), 0, _T("ID_STATICBOX4"));
-    TreeCtrlParts = new wxTreeCtrl(this, ID_TREECTRL1, wxPoint(692,220), wxSize(199,56), wxTR_HIDE_ROOT|wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_SINGLE, wxDefaultValidator, _T("ID_TREECTRL1"));
-    StaticTextDepth = new wxStaticText(this, ID_STATICTEXT1, _("Depth (mm):"), wxPoint(692,282), wxDefaultSize, 0, _T("ID_STATICTEXT1"));
-    TextCtrlDepth = new wxTextCtrl(this, ID_TEXTCTRL2, _("5.0"), wxPoint(768,280), wxSize(123,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
-    ButtonCreatePart = new wxButton(this, ID_BUTTON1, _("Create part"), wxPoint(692,308), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON1"));
-    ButtonAddToPart = new wxButton(this, ID_BUTTON2, _("Add to part"), wxPoint(795,308), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON2"));
-    CheckBoxClosePolylines = new wxCheckBox(this, ID_CHECKBOX1, _("Close polylines with coinciding ends"), wxPoint(692,338), wxSize(205,38), 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
+    StaticBoxParts = new wxStaticBox(this, ID_STATICBOX4, _("Parts"), wxPoint(680,195), wxSize(223,195), 0, _T("ID_STATICBOX4"));
+    TreeCtrlParts = new wxTreeCtrl(this, ID_TREECTRL1, wxPoint(692,212), wxSize(199,48), wxTR_HIDE_ROOT|wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_SINGLE, wxDefaultValidator, _T("ID_TREECTRL1"));
+    StaticTextDepth = new wxStaticText(this, ID_STATICTEXT1, _("Depth (mm):"), wxPoint(692,266), wxDefaultSize, 0, _T("ID_STATICTEXT1"));
+    TextCtrlDepth = new wxTextCtrl(this, ID_TEXTCTRL2, _("5.0"), wxPoint(768,264), wxSize(123,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
+    ButtonCreatePart = new wxButton(this, ID_BUTTON1, _("Create part"), wxPoint(692,290), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON1"));
+    ButtonAddToPart = new wxButton(this, ID_BUTTON2, _("Add to part"), wxPoint(795,290), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON2"));
+    CheckBoxClosePolylines = new wxCheckBox(this, ID_CHECKBOX1, _("Close polylines with coinciding ends"), wxPoint(692,318), wxSize(205,34), 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
     CheckBoxClosePolylines->SetValue(false);
+    StaticTextConnTol = new wxStaticText(this, ID_STATICTEXT2, _("Connection tolerance:"), wxPoint(692,358), wxDefaultSize, 0, _T("ID_STATICTEXT2"));
+    TextCtrlConnTolerance = new wxTextCtrl(this, ID_TEXTCTRL3, _("0.1"), wxPoint(825,356), wxSize(66,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
     StaticBoxStatus = new wxStaticBox(this, ID_STATICBOX2, _("Status"), wxPoint(24,400), wxSize(879,136), 0, _T("ID_STATICBOX2"));
     TextCtrlStatus = new wxTextCtrl(this, ID_TEXTCTRL1, _("Running\n"), wxPoint(40,424), wxSize(847,96), wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
-    MenuItemOpen = new wxMenuItem(Menu1, idMenuOpen, _("Open\tCtrl-O"), _("Open a file"), wxITEM_NORMAL);
+    MenuItemOpen = new wxMenuItem(Menu1, idMenuOpen, _("Open CAD Drawing\tCtrl-O"), _("Open a CAD drawing file"), wxITEM_NORMAL);
     Menu1->Append(MenuItemOpen);
+    MenuItemOpenProject = new wxMenuItem(Menu1, idMenuOpenProject, _("Open BendiCAM Project\tCtrl-P"), _("Open a BendiCAM project file"), wxITEM_NORMAL);
+    Menu1->Append(MenuItemOpenProject);
+    MenuItemSaveProject = new wxMenuItem(Menu1, idMenuSaveProject, _("Save BendiCAM Project\tCtrl-S"), _("Save current project to file"), wxITEM_NORMAL);
+    Menu1->Append(MenuItemSaveProject);
     MenuItem1 = new wxMenuItem(Menu1, ID_MENUITEM1, _("Quit\tAlt-F4"), _("Quit the application"), wxITEM_NORMAL);
     Menu1->Append(MenuItem1);
     MenuBar1->Append(Menu1, _("&File"));
@@ -117,8 +278,9 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     Connect(ID_BUTTON2, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnButtonAddToPartClick);
     Connect(ID_CHECKBOX1, wxEVT_COMMAND_CHECKBOX_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnCheckBoxClosePolylinesClick);
     TextCtrlDepth->Connect(wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnTextCtrlDepthChange, NULL, this);
-    TextCtrlDepth->Connect(wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnTextCtrlDepthChange, NULL, this);
     Connect(idMenuOpen, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnOpen);
+    Connect(idMenuOpenProject, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnOpenProject);
+    Connect(idMenuSaveProject, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnSaveProject);
     Connect(ID_MENUITEM1, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnQuit);
     Connect(idMenuAbout, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnAbout);
     Connect(ID_TIMER, wxEVT_TIMER, (wxObjectEventFunction)&BendiCAMFrame::OnTimerTrigger);
@@ -148,6 +310,10 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     preparsedData = nullptr;
 
     UpdatePartButtonStates();
+
+    Bind(wxEVT_SIZE, &BendiCAMFrame::OnSize, this);
+    wxSizeEvent dummyEvt;
+    OnSize(dummyEvt);
 }
 
 BendiCAMFrame::~BendiCAMFrame()
@@ -163,6 +329,74 @@ void BendiCAMFrame::OnAbout(wxCommandEvent& event)
 {
     wxString msg = wxbuildinfo(long_f);
     wxMessageBox(msg, _("Welcome to..."));
+}
+
+void BendiCAMFrame::OnSize(wxSizeEvent& event)
+{
+    event.Skip();
+
+    int w = 0, h = 0;
+    GetClientSize(&w, &h);
+    if (w <= 100 || h <= 100) return;
+
+    int margin = 12;
+    int gap = 12;
+    int rightWidth = 235;
+    int statusHeight = 120;
+
+    // Status Box
+    int statusY = h - margin - statusHeight;
+    int statusWidth = w - 2 * margin;
+    if (StaticBoxStatus) StaticBoxStatus->SetSize(margin, statusY, statusWidth, statusHeight);
+    if (TextCtrlStatus) TextCtrlStatus->SetSize(margin + 12, statusY + 20, statusWidth - 24, statusHeight - 30);
+
+    // Right Panel
+    int rightX = w - margin - rightWidth;
+    int rightTopY = margin;
+    int rightBottomY = statusY - gap;
+
+    int layersH = 170;
+    if (StaticBoxLayers) StaticBoxLayers->SetSize(rightX, rightTopY, rightWidth, layersH);
+    if (CheckListBoxLayers) CheckListBoxLayers->SetSize(rightX + 12, rightTopY + 20, rightWidth - 24, layersH - 30);
+
+    int partsY = rightTopY + layersH + gap;
+    int partsH = std::max(180, rightBottomY - partsY);
+    if (StaticBoxParts) StaticBoxParts->SetSize(rightX, partsY, rightWidth, partsH);
+
+    int bottomPadding = 12;
+    int rowConnTolY = partsY + partsH - bottomPadding - 22;
+    if (StaticTextConnTol) StaticTextConnTol->SetSize(rightX + 12, rowConnTolY + 2, 130, 20);
+    if (TextCtrlConnTolerance) TextCtrlConnTolerance->SetSize(rightX + 145, rowConnTolY, rightWidth - 145 - 12, 22);
+
+    int rowCheckY = rowConnTolY - 36;
+    if (CheckBoxClosePolylines) CheckBoxClosePolylines->SetSize(rightX + 12, rowCheckY, rightWidth - 24, 34);
+
+    int rowBtnY = rowCheckY - 28;
+    int btnW = (rightWidth - 24 - 8) / 2;
+    if (ButtonCreatePart) ButtonCreatePart->SetSize(rightX + 12, rowBtnY, btnW, 24);
+    if (ButtonAddToPart) ButtonAddToPart->SetSize(rightX + 12 + btnW + 8, rowBtnY, btnW, 24);
+
+    int rowDepthY = rowBtnY - 26;
+    if (StaticTextDepth) StaticTextDepth->SetSize(rightX + 12, rowDepthY + 2, 75, 20);
+    if (TextCtrlDepth) TextCtrlDepth->SetSize(rightX + 90, rowDepthY, rightWidth - 90 - 12, 22);
+
+    int treeTopY = partsY + 20;
+    int treeH = std::max(30, rowDepthY - 6 - treeTopY);
+    if (TreeCtrlParts) TreeCtrlParts->SetSize(rightX + 12, treeTopY, rightWidth - 24, treeH);
+
+    // Drawing Panels
+    int centerW = rightX - gap - margin;
+    int centerH = statusY - gap - margin;
+    if (centerW > 50 && centerH > 50) {
+        int panel1W = (centerW - gap) / 2;
+        int panel2W = centerW - gap - panel1W;
+
+        if (PanelDrawing) PanelDrawing->SetSize(margin, margin, panel1W, centerH);
+        if (Panel3D) Panel3D->SetSize(margin + panel1W + gap, margin, panel2W, centerH);
+    }
+
+    if (PanelDrawing) PanelDrawing->Refresh();
+    if (Panel3D) Panel3D->Refresh();
 }
 
 void BendiCAMFrame::getMinMaxDepth(double& minDepth, double& maxDepth) const
@@ -360,7 +594,7 @@ void BendiCAMFrame::OnButtonAddToPartClick(wxCommandEvent& event)
 
 void BendiCAMFrame::OnOpen(wxCommandEvent& event)
 {
-    wxFileDialog openFileDialog(this, _("Open DXF File"), "", "",
+    wxFileDialog openFileDialog(this, _("Open CAD Drawing"), "", "",
                                 _("DXF Files (*.dxf)|*.dxf|All Files (*.*)|*.*"),
                                 wxFD_OPEN | wxFD_FILE_MUST_EXIST);
 
@@ -369,6 +603,7 @@ void BendiCAMFrame::OnOpen(wxCommandEvent& event)
 
     wxString filename = openFileDialog.GetPath();
     if (m_dxfModel.loadFromFile(filename.ToStdString())) {
+        m_currentDxfPath = filename.ToStdString();
         m_zoom = 1.0;
         m_panX = 0.0;
         m_panY = 0.0;
@@ -388,12 +623,204 @@ void BendiCAMFrame::OnOpen(wxCommandEvent& event)
             CheckListBoxLayers->Check(idx, layer.visible);
         }
 
-        TextCtrlStatus->AppendText(wxString::Format(_("Loaded DXF: %s (%zu entities, %zu layers)\n"),
+        TextCtrlStatus->AppendText(wxString::Format(_("Loaded CAD Drawing: %s (%zu entities, %zu layers)\n"),
                                                    filename, m_dxfModel.entities.size(), m_dxfModel.layers.size()));
         PanelDrawing->Refresh();
+        Panel3D->Refresh();
     } else {
-        TextCtrlStatus->AppendText(wxString::Format(_("Failed to load DXF file: %s\n"), filename));
+        TextCtrlStatus->AppendText(wxString::Format(_("Failed to load CAD drawing: %s\n"), filename));
     }
+}
+
+void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
+{
+    wxFileDialog openFileDialog(this, _("Open BendiCAM Project"), "", "",
+                                _("BendiCAM Project (*.bcam)|*.bcam|JSON Files (*.json)|*.json|All Files (*.*)|*.*"),
+                                wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+
+    if (openFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    wxString projectPath = openFileDialog.GetPath();
+    std::ifstream in(projectPath.ToStdString());
+    if (!in.is_open()) {
+        TextCtrlStatus->AppendText(wxString::Format(_("Failed to open project file: %s\n"), projectPath));
+        return;
+    }
+
+    std::string jsonText((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    in.close();
+
+    JsonParser parser;
+    JsonValue root = parser.parse(jsonText);
+
+    std::string cadPath = root["cadFile"].strVal;
+    if (cadPath.empty()) {
+        TextCtrlStatus->AppendText(_("Invalid project file: missing cadFile reference.\n"));
+        return;
+    }
+
+    wxFileName fn(wxString::FromUTF8(cadPath.c_str()));
+    if (!fn.FileExists()) {
+        wxFileName projFn(projectPath);
+        wxString relPath = projFn.GetPath() + wxFileName::GetPathSeparator() + fn.GetFullName();
+        if (wxFileName::FileExists(relPath)) {
+            cadPath = relPath.ToStdString();
+        } else {
+            wxFileDialog dxfDlg(this, wxString::Format(_("Locate CAD drawing (%s)"), fn.GetFullName()),
+                                projFn.GetPath(), fn.GetFullName(),
+                                _("DXF Files (*.dxf)|*.dxf|All Files (*.*)|*.*"),
+                                wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+            if (dxfDlg.ShowModal() == wxID_CANCEL) return;
+            cadPath = dxfDlg.GetPath().ToStdString();
+        }
+    }
+
+    if (!m_dxfModel.loadFromFile(cadPath)) {
+        TextCtrlStatus->AppendText(wxString::Format(_("Failed to load CAD drawing: %s\n"), cadPath));
+        return;
+    }
+
+    m_currentDxfPath = cadPath;
+    m_zoom = 1.0;
+    m_panX = 0.0;
+    m_panY = 0.0;
+    m_isDragging = false;
+    m_selectedIndices.clear();
+    m_parts.clear();
+    m_selectedPartIndex = -1;
+    m_selectedShapeInPartIndex = -1;
+    m_nextPartId = 1;
+
+    // Restore Settings
+    bool closeCoinciding = root["settings"]["closeCoincidingPolylines"].boolVal;
+    double connTol = root["settings"]["connectionTolerance"].numVal;
+    CheckBoxClosePolylines->SetValue(closeCoinciding);
+    TextCtrlConnTolerance->SetValue(wxString::Format(wxT("%.3f"), connTol > 0.0 ? connTol : 0.1));
+
+    // Restore Layers
+    const auto& layersArr = root["layers"].arrVal;
+    for (const auto& lVal : layersArr) {
+        std::string name = lVal["name"].strVal;
+        bool visible = lVal["visible"].boolVal;
+        DxfLayer* layer = m_dxfModel.findLayer(name);
+        if (layer) {
+            layer->visible = visible;
+        }
+    }
+
+    CheckListBoxLayers->Clear();
+    for (const auto& layer : m_dxfModel.layers) {
+        int idx = CheckListBoxLayers->Append(wxString::FromUTF8(layer.name.c_str()));
+        CheckListBoxLayers->Check(idx, layer.visible);
+    }
+
+    // Restore Parts
+    const auto& partsArr = root["parts"].arrVal;
+    int maxId = 0;
+    for (const auto& pVal : partsArr) {
+        CamPart part;
+        part.id = (int)pVal["id"].numVal;
+        part.name = pVal["name"].strVal;
+        maxId = std::max(maxId, part.id);
+        const auto& shapesArr = pVal["shapes"].arrVal;
+        for (const auto& sVal : shapesArr) {
+            CamShape shape;
+            shape.shapeId = (int)sVal["shapeId"].numVal;
+            shape.depth = sVal["depth"].numVal;
+            const auto& indicesArr = sVal["entityIndices"].arrVal;
+            for (const auto& idxVal : indicesArr) {
+                shape.entityIndices.insert((size_t)idxVal.numVal);
+            }
+            part.shapes.push_back(shape);
+        }
+        m_parts.push_back(part);
+    }
+    m_nextPartId = maxId + 1;
+
+    RebuildPartsTree();
+    UpdatePartButtonStates();
+
+    TextCtrlStatus->AppendText(wxString::Format(_("Loaded BendiCAM Project: %s (%zu part(s))\n"), projectPath, m_parts.size()));
+    PanelDrawing->Refresh();
+    Panel3D->Refresh();
+}
+
+void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
+{
+    if (m_dxfModel.entities.empty()) {
+        wxMessageBox(_("No CAD drawing loaded. Please open a CAD drawing before saving a project."), _("Save BendiCAM Project"), wxOK | wxICON_INFORMATION, this);
+        return;
+    }
+
+    wxFileDialog saveFileDialog(this, _("Save BendiCAM Project"), "", "",
+                                _("BendiCAM Project (*.bcam)|*.bcam|JSON Files (*.json)|*.json|All Files (*.*)|*.*"),
+                                wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+
+    if (saveFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    wxString filename = saveFileDialog.GetPath();
+    if (!filename.EndsWith(_T(".bcam")) && !filename.EndsWith(_T(".json"))) {
+        filename += _T(".bcam");
+    }
+
+    std::ofstream out(filename.ToStdString());
+    if (!out.is_open()) {
+        TextCtrlStatus->AppendText(wxString::Format(_("Failed to open file for saving: %s\n"), filename));
+        return;
+    }
+
+    double connTol = 0.1;
+    TextCtrlConnTolerance->GetValue().ToDouble(&connTol);
+
+    out << "{\n";
+    out << "  \"version\": 1,\n";
+    out << "  \"cadFile\": \"" << escapeJson(m_currentDxfPath) << "\",\n";
+    out << "  \"settings\": {\n";
+    out << "    \"closeCoincidingPolylines\": " << (CheckBoxClosePolylines->IsChecked() ? "true" : "false") << ",\n";
+    out << "    \"connectionTolerance\": " << connTol << "\n";
+    out << "  },\n";
+
+    out << "  \"layers\": [\n";
+    for (size_t i = 0; i < m_dxfModel.layers.size(); ++i) {
+        const auto& layer = m_dxfModel.layers[i];
+        out << "    {\n";
+        out << "      \"name\": \"" << escapeJson(layer.name) << "\",\n";
+        out << "      \"visible\": " << (layer.visible ? "true" : "false") << "\n";
+        out << "    }" << (i + 1 < m_dxfModel.layers.size() ? "," : "") << "\n";
+    }
+    out << "  ],\n";
+
+    out << "  \"parts\": [\n";
+    for (size_t pIdx = 0; pIdx < m_parts.size(); ++pIdx) {
+        const auto& part = m_parts[pIdx];
+        out << "    {\n";
+        out << "      \"id\": " << part.id << ",\n";
+        out << "      \"name\": \"" << escapeJson(part.name) << "\",\n";
+        out << "      \"shapes\": [\n";
+        for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
+            const auto& shape = part.shapes[sIdx];
+            out << "        {\n";
+            out << "          \"shapeId\": " << shape.shapeId << ",\n";
+            out << "          \"depth\": " << shape.depth << ",\n";
+            out << "          \"entityIndices\": [";
+            size_t count = 0;
+            for (size_t idx : shape.entityIndices) {
+                out << idx << (count + 1 < shape.entityIndices.size() ? ", " : "");
+                count++;
+            }
+            out << "]\n";
+            out << "        }" << (sIdx + 1 < part.shapes.size() ? "," : "") << "\n";
+        }
+        out << "      ]\n";
+        out << "    }" << (pIdx + 1 < m_parts.size() ? "," : "") << "\n";
+    }
+    out << "  ]\n";
+    out << "}\n";
+
+    out.close();
+    TextCtrlStatus->AppendText(wxString::Format(_("Saved BendiCAM Project: %s\n"), filename));
 }
 
 void BendiCAMFrame::OnCheckListBoxLayersToggled(wxCommandEvent& event)
@@ -640,7 +1067,12 @@ void BendiCAMFrame::OnPanelLeftDown(wxMouseEvent& event)
     int clickedEntityIdx = m_dxfModel.hitTest(clickX, clickY, toleranceDxf);
     if (clickedEntityIdx >= 0) {
         bool closeCoinciding = CheckBoxClosePolylines->IsChecked();
-        m_selectedIndices = m_dxfModel.findConnectedEntities((size_t)clickedEntityIdx, 2.0 / scale, closeCoinciding);
+        double connTol = 0.1;
+        wxString tolStr = TextCtrlConnTolerance->GetValue();
+        if (!tolStr.ToDouble(&connTol) || connTol <= 0.0) {
+            connTol = 2.0 / scale;
+        }
+        m_selectedIndices = m_dxfModel.findConnectedEntities((size_t)clickedEntityIdx, connTol, closeCoinciding);
         TextCtrlStatus->AppendText(wxString::Format(_("Selected shape (%zu connected element(s))\n"), m_selectedIndices.size()));
     } else {
         m_selectedIndices.clear();
@@ -652,6 +1084,137 @@ void BendiCAMFrame::OnPanelLeftDown(wxMouseEvent& event)
 
     UpdatePartButtonStates();
     PanelDrawing->Refresh();
+}
+
+std::vector<std::vector<DxfPoint>> BendiCAMFrame::getShapeClosedPaths(const CamShape& shape) const
+{
+    struct ShapePathInternal {
+        std::vector<DxfPoint> pts;
+        bool isClosed = false;
+    };
+
+    std::vector<ShapePathInternal> rawPaths;
+
+    for (size_t idx : shape.entityIndices) {
+        if (idx >= m_dxfModel.entities.size()) continue;
+        const auto& entity = m_dxfModel.entities[idx];
+        const DxfLayer* layer = m_dxfModel.findLayer(entity.layerName);
+        if (layer && !layer->visible) continue;
+
+        std::vector<DxfPoint> geomPoints;
+        if (entity.type == DxfEntityType::LINE && entity.points.size() >= 2) {
+            geomPoints = { entity.points[0], entity.points[1] };
+        } else if ((entity.type == DxfEntityType::POLYLINE || entity.type == DxfEntityType::SPLINE) && entity.points.size() >= 2) {
+            geomPoints = entity.points;
+        } else if (entity.type == DxfEntityType::CIRCLE) {
+            int steps = 32;
+            for (int i = 0; i < steps; ++i) {
+                double t = 2.0 * M_PI * i / steps;
+                geomPoints.push_back(DxfPoint(entity.center.x + entity.radius * std::cos(t),
+                                              entity.center.y + entity.radius * std::sin(t)));
+            }
+        } else if (entity.type == DxfEntityType::ARC) {
+            double startRad = entity.startAngle * M_PI / 180.0;
+            double endRad = entity.endAngle * M_PI / 180.0;
+            if (endRad <= startRad) endRad += 2.0 * M_PI;
+            int steps = std::max(8, (int)(std::abs(endRad - startRad) / (M_PI / 36.0)));
+            for (int i = 0; i <= steps; ++i) {
+                double t = startRad + (endRad - startRad) * i / steps;
+                geomPoints.push_back(DxfPoint(entity.center.x + entity.radius * std::cos(t),
+                                              entity.center.y + entity.radius * std::sin(t)));
+            }
+        } else if (entity.type == DxfEntityType::ELLIPSE) {
+            int steps = 36;
+            double startP = entity.startParam;
+            double endP = entity.endParam;
+            if (endP <= startP) endP += 2.0 * M_PI;
+            for (int i = 0; i <= steps; ++i) {
+                double t = startP + (endP - startP) * i / steps;
+                double ex = entity.center.x + entity.majorAxis.x * std::cos(t) - entity.majorAxis.y * entity.ratio * std::sin(t);
+                double ey = entity.center.y + entity.majorAxis.y * std::cos(t) + entity.majorAxis.x * entity.ratio * std::sin(t);
+                geomPoints.push_back(DxfPoint(ex, ey));
+            }
+        }
+
+        if (geomPoints.size() < 2) continue;
+
+        bool closed = entity.isClosed || entity.type == DxfEntityType::CIRCLE || entity.type == DxfEntityType::ELLIPSE;
+        double distSq = (geomPoints.front().x - geomPoints.back().x)*(geomPoints.front().x - geomPoints.back().x) +
+                        (geomPoints.front().y - geomPoints.back().y)*(geomPoints.front().y - geomPoints.back().y);
+        if (distSq < 1e-6) {
+            closed = true;
+        }
+
+        if (closed && geomPoints.size() > 2 && distSq < 1e-6) {
+            geomPoints.pop_back();
+        }
+
+        rawPaths.push_back({ geomPoints, closed });
+    }
+
+    std::vector<ShapePathInternal> openPaths;
+    std::vector<std::vector<DxfPoint>> closedResult;
+
+    for (auto& path : rawPaths) {
+        if (path.isClosed) {
+            closedResult.push_back(path.pts);
+        } else {
+            openPaths.push_back(path);
+        }
+    }
+
+    while (!openPaths.empty()) {
+        ShapePathInternal current = openPaths.back();
+        openPaths.pop_back();
+
+        bool joined = true;
+        while (joined && !current.isClosed) {
+            joined = false;
+            for (size_t i = 0; i < openPaths.size(); ++i) {
+                auto& candidate = openPaths[i];
+                double d1 = std::hypot(current.pts.back().x - candidate.pts.front().x, current.pts.back().y - candidate.pts.front().y);
+                double d2 = std::hypot(current.pts.back().x - candidate.pts.back().x, current.pts.back().y - candidate.pts.back().y);
+                double d3 = std::hypot(current.pts.front().x - candidate.pts.back().x, current.pts.front().y - candidate.pts.back().y);
+                double d4 = std::hypot(current.pts.front().x - candidate.pts.front().x, current.pts.front().y - candidate.pts.front().y);
+
+                double tol = 1e-3;
+                if (d1 < tol) {
+                    current.pts.insert(current.pts.end(), candidate.pts.begin() + 1, candidate.pts.end());
+                    openPaths.erase(openPaths.begin() + i);
+                    joined = true;
+                    break;
+                } else if (d2 < tol) {
+                    std::vector<DxfPoint> rev(candidate.pts.rbegin(), candidate.pts.rend());
+                    current.pts.insert(current.pts.end(), rev.begin() + 1, rev.end());
+                    openPaths.erase(openPaths.begin() + i);
+                    joined = true;
+                    break;
+                } else if (d3 < tol) {
+                    current.pts.insert(current.pts.begin(), candidate.pts.begin(), candidate.pts.end() - 1);
+                    openPaths.erase(openPaths.begin() + i);
+                    joined = true;
+                    break;
+                } else if (d4 < tol) {
+                    std::vector<DxfPoint> rev(candidate.pts.rbegin(), candidate.pts.rend());
+                    current.pts.insert(current.pts.begin(), rev.begin(), rev.end() - 1);
+                    openPaths.erase(openPaths.begin() + i);
+                    joined = true;
+                    break;
+                }
+            }
+
+            double closeDist = std::hypot(current.pts.front().x - current.pts.back().x, current.pts.front().y - current.pts.back().y);
+            if (current.pts.size() >= 3 && closeDist < 1e-3) {
+                current.isClosed = true;
+                current.pts.pop_back();
+                break;
+            }
+        }
+
+        closedResult.push_back(current.pts);
+    }
+
+    return closedResult;
 }
 
 void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
@@ -773,10 +1336,38 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         }
     };
 
-    // Pass 0: Selected Part / Shape Highlighter Pass (glowing depth-gradient shadow pen underneath)
     double minDepth = 0.0, maxDepth = 0.0;
     getMinMaxDepth(minDepth, maxDepth);
 
+    // Pass -1: Filled Transparent Shapes for All Existing Parts
+    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+    if (gc) {
+        for (const auto& part : m_parts) {
+            for (const auto& shape : part.shapes) {
+                wxColour depthCol = getDepthColor(shape.depth, minDepth, maxDepth);
+                wxColour fillCol(depthCol.Red(), depthCol.Green(), depthCol.Blue(), 80);
+                gc->SetBrush(gc->CreateBrush(wxBrush(fillCol)));
+                gc->SetPen(*wxTRANSPARENT_PEN);
+
+                auto paths = getShapeClosedPaths(shape);
+                for (const auto& pathPts : paths) {
+                    if (pathPts.size() >= 3) {
+                        wxGraphicsPath gpath = gc->CreatePath();
+                        wxPoint startPt = ToScreen(pathPts[0].x, pathPts[0].y);
+                        gpath.MoveToPoint(startPt.x, startPt.y);
+                        for (size_t i = 1; i < pathPts.size(); ++i) {
+                            wxPoint pt = ToScreen(pathPts[i].x, pathPts[i].y);
+                            gpath.AddLineToPoint(pt.x, pt.y);
+                        }
+                        gpath.CloseSubpath();
+                        gc->FillPath(gpath);
+                    }
+                }
+            }
+        }
+    }
+
+    // Pass 0: Selected Part / Shape Highlighter Pass (glowing depth-gradient shadow pen underneath)
     if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
         const auto& part = m_parts[m_selectedPartIndex];
         dc.SetBrush(*wxTRANSPARENT_BRUSH);

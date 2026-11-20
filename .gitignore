@@ -2,6 +2,9 @@
 bin/
 obj/
 
+# Images / Screenshots
+*.png
+
 # IDE transient & harness files
 .opencode/
 cmd.exe.lnk

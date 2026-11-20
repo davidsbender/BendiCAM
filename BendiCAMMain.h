@@ -35,6 +35,10 @@ public:
 #include <wx/filedlg.h>
 #include <wx/dcclient.h>
 #include <wx/dcbuffer.h>
+#include <wx/graphics.h>
+#include <wx/filename.h>
+#include <fstream>
+#include <memory>
 #include <hidsdi.h>
 #include <hidpi.h>
 #include "DxfParser.h"
@@ -67,6 +71,8 @@ class BendiCAMFrame: public wxFrame
         //(*Handlers(BendiCAMFrame)
         void OnAbout(wxCommandEvent& event);
         void OnOpen(wxCommandEvent& event);
+        void OnOpenProject(wxCommandEvent& event);
+        void OnSaveProject(wxCommandEvent& event);
         void OnTimerTrigger(wxTimerEvent& event);
         void OnQuit(wxCloseEvent& event);
         void OnClose(wxCloseEvent& event);
@@ -90,9 +96,13 @@ class BendiCAMFrame: public wxFrame
         static const wxWindowID ID_BUTTON1;
         static const wxWindowID ID_BUTTON2;
         static const wxWindowID ID_CHECKBOX1;
+        static const wxWindowID ID_STATICTEXT2;
+        static const wxWindowID ID_TEXTCTRL3;
         static const wxWindowID ID_STATICBOX2;
         static const wxWindowID ID_TEXTCTRL1;
         static const wxWindowID idMenuOpen;
+        static const wxWindowID idMenuOpenProject;
+        static const wxWindowID idMenuSaveProject;
         static const wxWindowID ID_MENUITEM1;
         static const wxWindowID idMenuAbout;
         static const wxWindowID ID_TIMER;
@@ -110,6 +120,8 @@ class BendiCAMFrame: public wxFrame
         wxButton* ButtonCreatePart;
         wxButton* ButtonAddToPart;
         wxCheckBox* CheckBoxClosePolylines;
+        wxStaticText* StaticTextConnTol;
+        wxTextCtrl* TextCtrlConnTolerance;
         wxStaticBox* StaticBoxStatus;
         wxTextCtrl* TextCtrlStatus;
         wxTimer Timer;
@@ -131,12 +143,15 @@ class BendiCAMFrame: public wxFrame
         void OnPanel3DMiddleUp(wxMouseEvent& event);
         void OnPanel3DMouseMove(wxMouseEvent& event);
         void OnPanel3DMouseWheel(wxMouseEvent& event);
+        void OnSize(wxSizeEvent& event);
 
         void UpdatePartButtonStates();
         void RebuildPartsTree();
         void getMinMaxDepth(double& minDepth, double& maxDepth) const;
         wxColour getDepthColor(double depth, double minDepth, double maxDepth) const;
+        std::vector<std::vector<DxfPoint>> getShapeClosedPaths(const CamShape& shape) const;
 
+        std::string m_currentDxfPath;
         double m_zoom = 1.0;
         double m_panX = 0.0;
         double m_panY = 0.0;
