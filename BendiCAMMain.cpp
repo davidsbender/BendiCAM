@@ -340,11 +340,12 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     StaticBoxStatus->Reparent(PanelBottom);
     TextCtrlStatus->Reparent(StaticBoxStatus);
 
-    int initCenterW = 927 - 240;
-    int initDrawW = (int)(initCenterW * 0.65);
-    SplitterDraw3D->SplitVertically(PanelDrawing, Panel3D, initDrawW);
-    SplitterTop->SplitVertically(PanelDrawAnd3D, PanelRight, initCenterW);
-    SplitterMain->SplitHorizontally(PanelTop, PanelBottom, 578 - 130);
+    SplitterDraw3D->SplitVertically(PanelDrawing, Panel3D);
+    SplitterTop->SplitVertically(PanelDrawAnd3D, PanelRight);
+    SplitterMain->SplitHorizontally(PanelTop, PanelBottom);
+
+    SplitterMain->SetSashPosition(-115);
+    SplitterTop->SetSashPosition(-250);
 
     PanelRight->Bind(wxEVT_SIZE, &BendiCAMFrame::OnRightPanelSize, this);
     PanelBottom->Bind(wxEVT_SIZE, &BendiCAMFrame::OnBottomPanelSize, this);
@@ -395,6 +396,12 @@ void BendiCAMFrame::OnSize(wxSizeEvent& event)
 {
     event.Skip();
     Layout();
+    if (PanelDrawAnd3D && SplitterDraw3D) {
+        int totalW = PanelDrawAnd3D->GetClientSize().GetWidth();
+        if (totalW > 100) {
+            SplitterDraw3D->SetSashPosition((int)(totalW * 0.65));
+        }
+    }
 }
 
 void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
