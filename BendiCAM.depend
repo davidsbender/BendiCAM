@@ -2018,7 +2018,7 @@
 1795173027 c:\users\david\desktop\bendicam\bendicamapp.h
 	<wx/app.h>
 
-1795210970 c:\users\david\desktop\bendicam\bendicammain.h
+1795212136 c:\users\david\desktop\bendicam\bendicammain.h
 	<wx/button.h>
 	<wx/checkbox.h>
 	<wx/checklst.h>
@@ -2065,7 +2065,7 @@
 	<wx/pen.h>
 	<wx/math.h>
 
-1795211149 source:c:\users\david\desktop\bendicam\bendicammain.cpp
+1795213709 source:c:\users\david\desktop\bendicam\bendicammain.cpp
 	"BendiCAMMain.h"
 	<wx/msgdlg.h>
 	<mmsystem.h>

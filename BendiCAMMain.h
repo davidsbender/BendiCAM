@@ -103,6 +103,27 @@ class BendiCAMFrame: public wxFrame
         static const wxWindowID ID_TEXTCTRL3;
         static const wxWindowID ID_STATICBOX2;
         static const wxWindowID ID_TEXTCTRL1;
+        static const wxWindowID ID_STATICBOX5;
+        static const wxWindowID ID_STATICTEXT3;
+        static const wxWindowID ID_TEXTCTRL4;
+        static const wxWindowID ID_STATICTEXT4;
+        static const wxWindowID ID_TEXTCTRL5;
+        static const wxWindowID ID_STATICTEXT5;
+        static const wxWindowID ID_TEXTCTRL6;
+        static const wxWindowID ID_STATICTEXT6;
+        static const wxWindowID ID_TEXTCTRL7;
+        static const wxWindowID ID_STATICTEXT7;
+        static const wxWindowID ID_TEXTCTRL8;
+        static const wxWindowID ID_STATICTEXT8;
+        static const wxWindowID ID_TEXTCTRL9;
+        static const wxWindowID ID_STATICTEXT9;
+        static const wxWindowID ID_TEXTCTRL10;
+        static const wxWindowID ID_STATICBOX6;
+        static const wxWindowID ID_STATICTEXT10;
+        static const wxWindowID ID_TEXTCTRL11;
+        static const wxWindowID ID_STATICTEXT11;
+        static const wxWindowID ID_TEXTCTRL12;
+        static const wxWindowID ID_BUTTON3;
         static const wxWindowID idMenuOpen;
         static const wxWindowID idMenuOpenProject;
         static const wxWindowID idMenuSaveProject;
@@ -114,18 +135,39 @@ class BendiCAMFrame: public wxFrame
         //(*Declarations(BendiCAMFrame)
         wxButton* ButtonAddToPart;
         wxButton* ButtonCreatePart;
+        wxButton* ButtonExportGCode;
         wxCheckBox* CheckBoxClosePolylines;
         wxCheckListBox* CheckListBoxLayers;
         wxPanel* Panel3D;
         wxPanel* PanelDrawing;
         wxStaticBox* StaticBoxLayers;
+        wxStaticBox* StaticBoxMaterial;
         wxStaticBox* StaticBoxParts;
         wxStaticBox* StaticBoxStatus;
+        wxStaticBox* StaticBoxTool;
         wxStaticText* StaticTextConnTol;
         wxStaticText* StaticTextDepth;
+        wxStaticText* StaticTextMatTopHeight;
+        wxStaticText* StaticTextSafeZ;
+        wxStaticText* StaticTextToolDiameter;
+        wxStaticText* StaticTextToolFeedXY;
+        wxStaticText* StaticTextToolFeedZ;
+        wxStaticText* StaticTextToolRPM;
+        wxStaticText* StaticTextToolRampAngle;
+        wxStaticText* StaticTextToolStepdown;
+        wxStaticText* StaticTextToolStepover;
         wxTextCtrl* TextCtrlConnTolerance;
         wxTextCtrl* TextCtrlDepth;
+        wxTextCtrl* TextCtrlMatTopHeight;
+        wxTextCtrl* TextCtrlSafeZ;
         wxTextCtrl* TextCtrlStatus;
+        wxTextCtrl* TextCtrlToolDiameter;
+        wxTextCtrl* TextCtrlToolFeedXY;
+        wxTextCtrl* TextCtrlToolFeedZ;
+        wxTextCtrl* TextCtrlToolRPM;
+        wxTextCtrl* TextCtrlToolRampAngle;
+        wxTextCtrl* TextCtrlToolStepdown;
+        wxTextCtrl* TextCtrlToolStepover;
         wxTimer Timer;
         wxTreeCtrl* TreeCtrlParts;
         //*)
@@ -138,31 +180,6 @@ class BendiCAMFrame: public wxFrame
         wxPanel* PanelBottom = nullptr;
         wxPanel* PanelDrawAnd3D = nullptr;
         wxPanel* PanelRight = nullptr;
-
-        // Custom Tool & Material UI Controls
-        wxStaticBox* StaticBoxTool = nullptr;
-        wxStaticText* StaticTextToolDiameter = nullptr;
-        wxTextCtrl* TextCtrlToolDiameter = nullptr;
-        wxStaticText* StaticTextToolRPM = nullptr;
-        wxTextCtrl* TextCtrlToolRPM = nullptr;
-        wxStaticText* StaticTextToolFeedXY = nullptr;
-        wxTextCtrl* TextCtrlToolFeedXY = nullptr;
-        wxStaticText* StaticTextToolFeedZ = nullptr;
-        wxTextCtrl* TextCtrlToolFeedZ = nullptr;
-        wxStaticText* StaticTextToolStepdown = nullptr;
-        wxTextCtrl* TextCtrlToolStepdown = nullptr;
-        wxStaticText* StaticTextToolStepover = nullptr;
-        wxTextCtrl* TextCtrlToolStepover = nullptr;
-        wxStaticText* StaticTextToolRampAngle = nullptr;
-        wxTextCtrl* TextCtrlToolRampAngle = nullptr;
-
-        wxStaticBox* StaticBoxMaterial = nullptr;
-        wxStaticText* StaticTextMatTopHeight = nullptr;
-        wxTextCtrl* TextCtrlMatTopHeight = nullptr;
-        wxStaticText* StaticTextSafeZ = nullptr;
-        wxTextCtrl* TextCtrlSafeZ = nullptr;
-
-        wxButton* ButtonExportGCode = nullptr;
 
         bool m_isDirty = false;
         wxString m_loadedFileName;
@@ -199,6 +216,7 @@ class BendiCAMFrame: public wxFrame
         std::vector<std::vector<DxfPoint>> getShapeClosedPaths(const CamShape& shape) const;
 
         std::string m_currentDxfPath;
+        std::string m_currentProjectPath;
         double m_zoom = 1.0;
         double m_panX = 0.0;
         double m_panY = 0.0;

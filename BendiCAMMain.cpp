@@ -208,6 +208,27 @@ const wxWindowID BendiCAMFrame::ID_STATICTEXT2 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL3 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_STATICBOX2 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICBOX5 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT3 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL4 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT4 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL5 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT5 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL6 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT6 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL7 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT7 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL8 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT8 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL9 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT9 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL10 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICBOX6 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT10 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL11 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT11 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL12 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_BUTTON3 = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuOpen = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuOpenProject = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuSaveProject = wxNewId();
@@ -253,6 +274,27 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     TextCtrlConnTolerance = new wxTextCtrl(this, ID_TEXTCTRL3, _T("0.1"), wxPoint(825,356), wxSize(66,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
     StaticBoxStatus = new wxStaticBox(this, ID_STATICBOX2, _("Status"), wxPoint(24,400), wxSize(879,136), 0, _T("ID_STATICBOX2"));
     TextCtrlStatus = new wxTextCtrl(this, ID_TEXTCTRL1, _("Running\n"), wxPoint(40,424), wxSize(847,96), wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
+    StaticBoxTool = new wxStaticBox(this, ID_STATICBOX5, _("Tool (Milling Cutter)"), wxPoint(680,396), wxSize(223,135), 0, _T("ID_STATICBOX5"));
+    StaticTextToolDiameter = new wxStaticText(this, ID_STATICTEXT3, _("Diameter (mm):"), wxPoint(692,416), wxDefaultSize, 0, _T("ID_STATICTEXT3"));
+    TextCtrlToolDiameter = new wxTextCtrl(this, ID_TEXTCTRL4, _T("2"), wxPoint(768,414), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL4"));
+    StaticTextToolRPM = new wxStaticText(this, ID_STATICTEXT4, _("RPM (min^-1):"), wxPoint(815,416), wxDefaultSize, 0, _T("ID_STATICTEXT4"));
+    TextCtrlToolRPM = new wxTextCtrl(this, ID_TEXTCTRL5, _T("12000"), wxPoint(880,414), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL5"));
+    StaticTextToolFeedXY = new wxStaticText(this, ID_STATICTEXT5, _("Feed XY (mm/min):"), wxPoint(692,442), wxDefaultSize, 0, _T("ID_STATICTEXT5"));
+    TextCtrlToolFeedXY = new wxTextCtrl(this, ID_TEXTCTRL6, _T("500"), wxPoint(768,440), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL6"));
+    StaticTextToolFeedZ = new wxStaticText(this, ID_STATICTEXT6, _("Feed Z (mm/min):"), wxPoint(815,442), wxDefaultSize, 0, _T("ID_STATICTEXT6"));
+    TextCtrlToolFeedZ = new wxTextCtrl(this, ID_TEXTCTRL7, _T("250"), wxPoint(880,440), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL7"));
+    StaticTextToolStepdown = new wxStaticText(this, ID_STATICTEXT7, _("Stepdown (mm):"), wxPoint(692,468), wxDefaultSize, 0, _T("ID_STATICTEXT7"));
+    TextCtrlToolStepdown = new wxTextCtrl(this, ID_TEXTCTRL8, _T("1"), wxPoint(768,466), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL8"));
+    StaticTextToolStepover = new wxStaticText(this, ID_STATICTEXT8, _("Stepover (%):"), wxPoint(815,468), wxDefaultSize, 0, _T("ID_STATICTEXT8"));
+    TextCtrlToolStepover = new wxTextCtrl(this, ID_TEXTCTRL9, _T("70"), wxPoint(880,466), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL9"));
+    StaticTextToolRampAngle = new wxStaticText(this, ID_STATICTEXT9, _("Ramp Angle (°):"), wxPoint(692,494), wxDefaultSize, 0, _T("ID_STATICTEXT9"));
+    TextCtrlToolRampAngle = new wxTextCtrl(this, ID_TEXTCTRL10, _T("20"), wxPoint(768,492), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL10"));
+    StaticBoxMaterial = new wxStaticBox(this, ID_STATICBOX6, _("Material & Safety"), wxPoint(680,537), wxSize(223,50), 0, _T("ID_STATICBOX6"));
+    StaticTextMatTopHeight = new wxStaticText(this, ID_STATICTEXT10, _("Top Height (mm):"), wxPoint(692,555), wxDefaultSize, 0, _T("ID_STATICTEXT10"));
+    TextCtrlMatTopHeight = new wxTextCtrl(this, ID_TEXTCTRL11, _T("10"), wxPoint(768,553), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL11"));
+    StaticTextSafeZ = new wxStaticText(this, ID_STATICTEXT11, _("Safe Z (mm):"), wxPoint(815,555), wxDefaultSize, 0, _T("ID_STATICTEXT11"));
+    TextCtrlSafeZ = new wxTextCtrl(this, ID_TEXTCTRL12, _T("10"), wxPoint(880,553), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL12"));
+    ButtonExportGCode = new wxButton(this, ID_BUTTON3, _("Export EdingCNC G-Code..."), wxPoint(680,595), wxSize(223,28), 0, wxDefaultValidator, _T("ID_BUTTON3"));
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
     MenuItemOpen = new wxMenuItem(Menu1, idMenuOpen, _("Open CAD Drawing\tCtrl-O"), _("Open a CAD drawing file"), wxITEM_NORMAL);
@@ -277,6 +319,16 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     Connect(ID_BUTTON1, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnButtonCreatePartClick);
     Connect(ID_BUTTON2, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnButtonAddToPartClick);
     Connect(ID_CHECKBOX1, wxEVT_COMMAND_CHECKBOX_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnCheckBoxClosePolylinesClick);
+    Connect(ID_TEXTCTRL4, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL5, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL6, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL7, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL8, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL9, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL10, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL11, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL12, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_BUTTON3, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnExportGCode);
     Connect(idMenuOpen, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnOpen);
     Connect(idMenuOpenProject, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnOpenProject);
     Connect(idMenuSaveProject, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnSaveProject);
@@ -340,51 +392,29 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     StaticBoxStatus->Reparent(PanelBottom);
     TextCtrlStatus->Reparent(PanelBottom);
 
-    // Create Tool Controls
-    StaticBoxTool = new wxStaticBox(PanelRight, wxID_ANY, _("Tool (Milling Cutter)"));
+    StaticBoxTool->Reparent(PanelRight);
+    StaticTextToolDiameter->Reparent(PanelRight);
+    TextCtrlToolDiameter->Reparent(PanelRight);
+    StaticTextToolRPM->Reparent(PanelRight);
+    TextCtrlToolRPM->Reparent(PanelRight);
+    StaticTextToolFeedXY->Reparent(PanelRight);
+    TextCtrlToolFeedXY->Reparent(PanelRight);
+    StaticTextToolFeedZ->Reparent(PanelRight);
+    TextCtrlToolFeedZ->Reparent(PanelRight);
+    StaticTextToolStepdown->Reparent(PanelRight);
+    TextCtrlToolStepdown->Reparent(PanelRight);
+    StaticTextToolStepover->Reparent(PanelRight);
+    TextCtrlToolStepover->Reparent(PanelRight);
+    StaticTextToolRampAngle->Reparent(PanelRight);
+    TextCtrlToolRampAngle->Reparent(PanelRight);
 
-    StaticTextToolDiameter = new wxStaticText(PanelRight, wxID_ANY, _("Diameter (mm):"));
-    TextCtrlToolDiameter = new wxTextCtrl(PanelRight, wxID_ANY, _("2"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticBoxMaterial->Reparent(PanelRight);
+    StaticTextMatTopHeight->Reparent(PanelRight);
+    TextCtrlMatTopHeight->Reparent(PanelRight);
+    StaticTextSafeZ->Reparent(PanelRight);
+    TextCtrlSafeZ->Reparent(PanelRight);
 
-    StaticTextToolRPM = new wxStaticText(PanelRight, wxID_ANY, _("RPM (min^-1):"));
-    TextCtrlToolRPM = new wxTextCtrl(PanelRight, wxID_ANY, _("12000"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    StaticTextToolFeedXY = new wxStaticText(PanelRight, wxID_ANY, _("Feed XY (mm/min):"));
-    TextCtrlToolFeedXY = new wxTextCtrl(PanelRight, wxID_ANY, _("500"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    StaticTextToolFeedZ = new wxStaticText(PanelRight, wxID_ANY, _("Feed Z (mm/min):"));
-    TextCtrlToolFeedZ = new wxTextCtrl(PanelRight, wxID_ANY, _("250"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    StaticTextToolStepdown = new wxStaticText(PanelRight, wxID_ANY, _("Stepdown (mm):"));
-    TextCtrlToolStepdown = new wxTextCtrl(PanelRight, wxID_ANY, _("1"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    StaticTextToolStepover = new wxStaticText(PanelRight, wxID_ANY, _("Stepover (%):"));
-    TextCtrlToolStepover = new wxTextCtrl(PanelRight, wxID_ANY, _("70"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    StaticTextToolRampAngle = new wxStaticText(PanelRight, wxID_ANY, _("Ramp Angle (\xB0):"));
-    TextCtrlToolRampAngle = new wxTextCtrl(PanelRight, wxID_ANY, _("20"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    // Create Material Controls
-    StaticBoxMaterial = new wxStaticBox(PanelRight, wxID_ANY, _("Material & Safety"));
-
-    StaticTextMatTopHeight = new wxStaticText(PanelRight, wxID_ANY, _("Top Height (mm):"));
-    TextCtrlMatTopHeight = new wxTextCtrl(PanelRight, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    StaticTextSafeZ = new wxStaticText(PanelRight, wxID_ANY, _("Safe Z (mm):"));
-    TextCtrlSafeZ = new wxTextCtrl(PanelRight, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
-
-    ButtonExportGCode = new wxButton(PanelRight, wxID_ANY, _("Export EdingCNC G-Code..."));
-
-    TextCtrlToolDiameter->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlToolRPM->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlToolFeedXY->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlToolFeedZ->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlToolStepdown->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlToolStepover->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlToolRampAngle->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlMatTopHeight->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    TextCtrlSafeZ->Bind(wxEVT_TEXT, &BendiCAMFrame::OnToolOrMaterialSettingChange, this);
-    ButtonExportGCode->Bind(wxEVT_BUTTON, &BendiCAMFrame::OnExportGCode, this);
+    ButtonExportGCode->Reparent(PanelRight);
 
     SplitterDraw3D->SplitVertically(PanelDrawing, Panel3D);
     SplitterTop->SplitVertically(PanelDrawAnd3D, PanelRight);
@@ -792,6 +822,7 @@ void BendiCAMFrame::OnOpen(wxCommandEvent& event)
     wxString filename = openFileDialog.GetPath();
     if (m_dxfModel.loadFromFile(filename.ToStdString())) {
         m_currentDxfPath = filename.ToStdString();
+        m_currentProjectPath.clear();
         m_zoom = 1.0;
         m_panX = 0.0;
         m_panY = 0.0;
@@ -969,6 +1000,7 @@ void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
 
     wxFileName projFn(projectPath);
     m_loadedFileName = projFn.GetFullName();
+    m_currentProjectPath = projectPath.ToStdString();
     MarkClean();
 
     TextCtrlStatus->AppendText(wxString::Format(_("Loaded BendiCAM Project: %s (%zu part(s))\n"), projectPath, m_parts.size()));
@@ -983,7 +1015,16 @@ void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
         return;
     }
 
-    wxFileDialog saveFileDialog(this, _("Save BendiCAM Project"), "", "",
+    wxString defaultName = _T("project.bcam");
+    if (!m_currentProjectPath.empty()) {
+        wxFileName fn(wxString::FromUTF8(m_currentProjectPath.c_str()));
+        defaultName = fn.GetFullName();
+    } else if (!m_currentDxfPath.empty()) {
+        wxFileName fn(wxString::FromUTF8(m_currentDxfPath.c_str()));
+        defaultName = fn.GetName() + _T(".bcam");
+    }
+
+    wxFileDialog saveFileDialog(this, _("Save BendiCAM Project"), "", defaultName,
                                 _("BendiCAM Project (*.bcam)|*.bcam|JSON Files (*.json)|*.json|All Files (*.*)|*.*"),
                                 wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 
@@ -1078,6 +1119,7 @@ void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
     out.close();
     wxFileName saveFn(filename);
     m_loadedFileName = saveFn.GetFullName();
+    m_currentProjectPath = filename.ToStdString();
     MarkClean();
     TextCtrlStatus->AppendText(wxString::Format(_("Saved BendiCAM Project: %s\n"), filename));
 }
@@ -2385,7 +2427,10 @@ void BendiCAMFrame::OnExportGCode(wxCommandEvent& event)
     }
 
     wxString defaultName = _T("output.cnc");
-    if (!m_currentDxfPath.empty()) {
+    if (!m_currentProjectPath.empty()) {
+        wxFileName fn(wxString::FromUTF8(m_currentProjectPath.c_str()));
+        defaultName = fn.GetName() + _T(".cnc");
+    } else if (!m_currentDxfPath.empty()) {
         wxFileName fn(wxString::FromUTF8(m_currentDxfPath.c_str()));
         defaultName = fn.GetName() + _T(".cnc");
     }
@@ -2398,6 +2443,121 @@ void BendiCAMFrame::OnExportGCode(wxCommandEvent& event)
         return;
 
     GenerateGCode(saveFileDialog.GetPath());
+}
+
+static double getPolygonArea(const std::vector<DxfPoint>& pts)
+{
+    double area = 0.0;
+    size_t n = pts.size();
+    for (size_t i = 0; i < n; ++i) {
+        size_t j = (i + 1) % n;
+        area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+    }
+    return area * 0.5;
+}
+
+static std::vector<DxfPoint> offsetPolygon(const std::vector<DxfPoint>& inPts, double dist)
+{
+    std::vector<DxfPoint> pts = inPts;
+    if (pts.size() >= 3 && std::hypot(pts.front().x - pts.back().x, pts.front().y - pts.back().y) < 1e-6) {
+        pts.pop_back();
+    }
+    size_t n = pts.size();
+    if (n < 3) return inPts;
+
+    double area = getPolygonArea(pts);
+    bool isCCW = (area > 0.0);
+
+    std::vector<DxfPoint> normals(n);
+    for (size_t i = 0; i < n; ++i) {
+        size_t nextIdx = (i + 1) % n;
+        double dx = pts[nextIdx].x - pts[i].x;
+        double dy = pts[nextIdx].y - pts[i].y;
+        double len = std::hypot(dx, dy);
+        if (len < 1e-9) {
+            normals[i] = DxfPoint(0, 0);
+        } else if (isCCW) {
+            normals[i] = DxfPoint(dy / len, -dx / len);
+        } else {
+            normals[i] = DxfPoint(-dy / len, dx / len);
+        }
+    }
+
+    std::vector<DxfPoint> result(n);
+    for (size_t i = 0; i < n; ++i) {
+        size_t prevIdx = (i + n - 1) % n;
+        const auto& nIn = normals[prevIdx];
+        const auto& nOut = normals[i];
+
+        double dot = nIn.x * nOut.x + nIn.y * nOut.y;
+        double denom = 1.0 + dot;
+
+        DxfPoint miter;
+        if (denom < 1e-4) {
+            miter = nOut;
+        } else {
+            miter = DxfPoint((nIn.x + nOut.x) / denom, (nIn.y + nOut.y) / denom);
+        }
+
+        double miterLen = std::hypot(miter.x, miter.y);
+        if (miterLen > 2.0) {
+            miter.x = (miter.x / miterLen) * 2.0;
+            miter.y = (miter.y / miterLen) * 2.0;
+        }
+
+        result[i] = DxfPoint(pts[i].x + dist * miter.x, pts[i].y + dist * miter.y);
+    }
+
+    return result;
+}
+
+static std::vector<DxfPoint> samplePolygon(const std::vector<DxfPoint>& inPts, int targetCount)
+{
+    std::vector<DxfPoint> pts = inPts;
+    if (pts.size() >= 3 && std::hypot(pts.front().x - pts.back().x, pts.front().y - pts.back().y) < 1e-6) {
+        pts.pop_back();
+    }
+    size_t n = pts.size();
+    if (n < 3 || targetCount < 3) return inPts;
+
+    std::vector<double> segLens(n);
+    double totalLen = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        size_t nextIdx = (i + 1) % n;
+        segLens[i] = std::hypot(pts[nextIdx].x - pts[i].x, pts[nextIdx].y - pts[i].y);
+        totalLen += segLens[i];
+    }
+
+    if (totalLen < 1e-9) return inPts;
+
+    std::vector<DxfPoint> sampled;
+    sampled.reserve(targetCount);
+
+    double stepLen = totalLen / targetCount;
+    size_t segIdx = 0;
+    double distOnSeg = 0.0;
+
+    for (int k = 0; k < targetCount; ++k) {
+        double targetDist = k * stepLen;
+        while (segIdx < n && distOnSeg + segLens[segIdx] < targetDist - 1e-9) {
+            distOnSeg += segLens[segIdx];
+            segIdx++;
+        }
+        if (segIdx >= n) {
+            segIdx = n - 1;
+        }
+        double rem = targetDist - distOnSeg;
+        double t = (segLens[segIdx] > 1e-9) ? (rem / segLens[segIdx]) : 0.0;
+        if (t < 0.0) t = 0.0;
+        if (t > 1.0) t = 1.0;
+
+        size_t nextIdx = (segIdx + 1) % n;
+        double px = pts[segIdx].x + t * (pts[nextIdx].x - pts[segIdx].x);
+        double py = pts[segIdx].y + t * (pts[nextIdx].y - pts[segIdx].y);
+        sampled.push_back(DxfPoint(px, py));
+    }
+
+    return sampled;
 }
 
 void BendiCAMFrame::GenerateGCode(const wxString& filePath)
@@ -2468,33 +2628,6 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
             }
         }
 
-        auto getShapeCircle = [&](const CamShape& s, double& cx, double& cy, double& r) -> bool {
-            for (size_t idx : s.entityIndices) {
-                if (idx < m_dxfModel.entities.size()) {
-                    const auto& ent = m_dxfModel.entities[idx];
-                    if (ent.type == DxfEntityType::CIRCLE) {
-                        cx = ent.center.x;
-                        cy = ent.center.y;
-                        r = ent.radius;
-                        return true;
-                    }
-                }
-            }
-            auto paths = getShapeClosedPaths(s);
-            if (!paths.empty() && paths[0].size() >= 3) {
-                const auto& pts = paths[0];
-                double sx = 0, sy = 0;
-                for (const auto& p : pts) { sx += p.x; sy += p.y; }
-                cx = sx / pts.size();
-                cy = sy / pts.size();
-                double avgR = 0;
-                for (const auto& p : pts) { avgR += std::hypot(p.x - cx, p.y - cy); }
-                r = avgR / pts.size();
-                return true;
-            }
-            return false;
-        };
-
         double toolRad = diameter / 2.0;
 
         if (stepShape) {
@@ -2516,69 +2649,104 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                 passZLevels.push_back(targetZ);
             }
 
-            double cx1 = 0, cy1 = 0, r1 = 0;
-            double cx2 = 0, cy2 = 0, r2 = 0;
-            bool hasCircle1 = getShapeCircle(*stepShape, cx1, cy1, r1);
-            bool hasCircle2 = islandShape ? getShapeCircle(*islandShape, cx2, cy2, r2) : false;
+            auto stepPaths = getShapeClosedPaths(*stepShape);
+            if (!stepPaths.empty() && stepPaths[0].size() >= 3) {
+                std::vector<DxfPoint> outerPath = stepPaths[0];
 
-            double cx = hasCircle2 ? cx2 : (hasCircle1 ? cx1 : 0.0);
-            double cy = hasCircle2 ? cy2 : (hasCircle1 ? cy1 : 0.0);
-
-            double rInnerLimit = hasCircle2 ? (r2 + toolRad) : toolRad;
-            double rOuterLimit = hasCircle1 ? (r1 - toolRad) : rInnerLimit;
-
-            double stepoverDist = diameter * (stepover / 100.0);
-            if (stepoverDist <= 0.001) stepoverDist = diameter * 0.7;
-
-            std::vector<double> ringRadii;
-            if (rOuterLimit >= rInnerLimit - 1e-4) {
-                double rCur = rInnerLimit;
-                while (rCur <= rOuterLimit + 1e-4) {
-                    ringRadii.push_back(rCur);
-                    if (std::abs(rCur - rOuterLimit) < 1e-4) break;
-                    rCur += stepoverDist;
-                    if (rCur > rOuterLimit && rCur < rOuterLimit + stepoverDist - 1e-4) {
-                        rCur = rOuterLimit;
+                std::vector<DxfPoint> innerPath;
+                bool hasIsland = false;
+                if (islandShape) {
+                    auto islandPaths = getShapeClosedPaths(*islandShape);
+                    if (!islandPaths.empty() && islandPaths[0].size() >= 3) {
+                        innerPath = islandPaths[0];
+                        hasIsland = true;
                     }
                 }
-                if (ringRadii.empty()) ringRadii.push_back(rInnerLimit);
-            } else {
-                ringRadii.push_back(rInnerLimit);
-            }
 
-            int numPasses = (int)passZLevels.size();
-            int numStepsPerCircle = 36;
+                std::vector<DxfPoint> L_outer = offsetPolygon(outerPath, -toolRad);
 
-            for (int pIdx = 0; pIdx < numPasses; ++pIdx) {
-                double curZ = passZLevels[pIdx];
-                double prevZ = (pIdx == 0) ? topHeight : passZLevels[pIdx - 1];
+                std::vector<DxfPoint> L_inner;
+                if (hasIsland) {
+                    L_inner = offsetPolygon(innerPath, +toolRad);
+                } else {
+                    double cx = 0, cy = 0;
+                    for (const auto& p : outerPath) { cx += p.x; cy += p.y; }
+                    cx /= outerPath.size();
+                    cy /= outerPath.size();
 
-                snprintf(buf, sizeof(buf), "( Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numPasses, curZ);
-                out << buf;
-
-                for (size_t ringIdx = 0; ringIdx < ringRadii.size(); ++ringIdx) {
-                    double rRing = ringRadii[ringIdx];
-                    double startX = cx + rRing;
-                    double startY = cy;
-
-                    snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
-                    snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
-                    snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
-
-                    for (int i = 1; i <= numStepsPerCircle; ++i) {
-                        double t = 2.0 * M_PI * i / numStepsPerCircle;
-                        double px = cx + rRing * std::cos(t);
-                        double py = cy + rRing * std::sin(t);
-                        double pz = prevZ + (curZ - prevZ) * ((double)i / numStepsPerCircle);
-                        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n", px, py, pz, feedZ); out << buf;
+                    double maxR = 0;
+                    for (const auto& p : outerPath) {
+                        maxR = std::max(maxR, std::hypot(p.x - cx, p.y - cy));
                     }
 
-                    snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-                    for (int i = 1; i <= numStepsPerCircle; ++i) {
-                        double t = 2.0 * M_PI * i / numStepsPerCircle;
-                        double px = cx + rRing * std::cos(t);
-                        double py = cy + rRing * std::sin(t);
-                        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", px, py); out << buf;
+                    double scaleInner = (maxR > 1e-4) ? std::min(1.0, toolRad / maxR) : 0.1;
+                    L_inner.reserve(outerPath.size());
+                    for (const auto& p : outerPath) {
+                        L_inner.push_back(DxfPoint(cx + (p.x - cx) * scaleInner, cy + (p.y - cy) * scaleInner));
+                    }
+                }
+
+                int M = std::max({ 36, (int)L_outer.size(), (int)L_inner.size() });
+                std::vector<DxfPoint> L_outer_sampled = samplePolygon(L_outer, M);
+                std::vector<DxfPoint> L_inner_sampled = samplePolygon(L_inner, M);
+
+                double maxDist = 0.0;
+                for (int i = 0; i < M; ++i) {
+                    double d = std::hypot(L_outer_sampled[i].x - L_inner_sampled[i].x, L_outer_sampled[i].y - L_inner_sampled[i].y);
+                    maxDist = std::max(maxDist, d);
+                }
+
+                double stepoverDist = diameter * (stepover / 100.0);
+                if (stepoverDist <= 0.001) stepoverDist = diameter * 0.7;
+
+                int numRings = std::max(1, (int)std::ceil(maxDist / stepoverDist));
+                std::vector<std::vector<DxfPoint>> ringLoops;
+
+                for (int rIdx = 0; rIdx < numRings; ++rIdx) {
+                    double t = (numRings == 1) ? 1.0 : ((double)rIdx / (numRings - 1));
+                    std::vector<DxfPoint> ring(M);
+                    for (int i = 0; i < M; ++i) {
+                        ring[i] = DxfPoint((1.0 - t) * L_inner_sampled[i].x + t * L_outer_sampled[i].x,
+                                           (1.0 - t) * L_inner_sampled[i].y + t * L_outer_sampled[i].y);
+                    }
+                    ringLoops.push_back(ring);
+                }
+
+                int numPasses = (int)passZLevels.size();
+                for (int pIdx = 0; pIdx < numPasses; ++pIdx) {
+                    double curZ = passZLevels[pIdx];
+                    double prevZ = (pIdx == 0) ? topHeight : passZLevels[pIdx - 1];
+
+                    snprintf(buf, sizeof(buf), "( Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numPasses, curZ);
+                    out << buf;
+
+                    for (size_t ringIdx = 0; ringIdx < ringLoops.size(); ++ringIdx) {
+                        const auto& loop = ringLoops[ringIdx];
+                        int numPts = (int)loop.size();
+                        if (numPts == 0) continue;
+
+                        double startX = loop[0].x;
+                        double startY = loop[0].y;
+
+                        snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
+                        snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
+                        snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
+
+                        for (int i = 1; i <= numPts; ++i) {
+                            int idx = i % numPts;
+                            double px = loop[idx].x;
+                            double py = loop[idx].y;
+                            double pz = prevZ + (curZ - prevZ) * ((double)i / numPts);
+                            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n", px, py, pz, feedZ); out << buf;
+                        }
+
+                        snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+                        for (int i = 1; i <= numPts; ++i) {
+                            int idx = i % numPts;
+                            double px = loop[idx].x;
+                            double py = loop[idx].y;
+                            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", px, py); out << buf;
+                        }
                     }
                 }
             }
@@ -2603,12 +2771,15 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
 
         const CamShape* outerShape = stepShape ? stepShape : (islandShape ? islandShape : nullptr);
         if (outerShape) {
-            double cxOuter = 0, cyOuter = 0, rOuter = 0;
-            if (getShapeCircle(*outerShape, cxOuter, cyOuter, rOuter)) {
-                double rContour = rOuter + toolRad;
-                int numProfPasses = (int)profilePassZLevels.size();
-                int numStepsPerCircle = 36;
+            auto outerPaths = getShapeClosedPaths(*outerShape);
+            for (const auto& path : outerPaths) {
+                if (path.size() < 3) continue;
 
+                std::vector<DxfPoint> contourPath = offsetPolygon(path, +toolRad);
+                int M = std::max(36, (int)contourPath.size());
+                std::vector<DxfPoint> sampledContour = samplePolygon(contourPath, M);
+
+                int numProfPasses = (int)profilePassZLevels.size();
                 for (int pIdx = 0; pIdx < numProfPasses; ++pIdx) {
                     double curZ = profilePassZLevels[pIdx];
                     double prevZ = (pIdx == 0) ? topHeight : profilePassZLevels[pIdx - 1];
@@ -2616,26 +2787,26 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                     snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numProfPasses, curZ);
                     out << buf;
 
-                    double startX = cxOuter + rContour;
-                    double startY = cyOuter;
+                    double startX = sampledContour[0].x;
+                    double startY = sampledContour[0].y;
 
                     snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
                     snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
                     snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
 
-                    for (int i = 1; i <= numStepsPerCircle; ++i) {
-                        double t = 2.0 * M_PI * i / numStepsPerCircle;
-                        double px = cxOuter + rContour * std::cos(t);
-                        double py = cyOuter + rContour * std::sin(t);
-                        double pz = prevZ + (curZ - prevZ) * ((double)i / numStepsPerCircle);
+                    for (int i = 1; i <= M; ++i) {
+                        int idx = i % M;
+                        double px = sampledContour[idx].x;
+                        double py = sampledContour[idx].y;
+                        double pz = prevZ + (curZ - prevZ) * ((double)i / M);
                         snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n", px, py, pz, feedZ); out << buf;
                     }
 
                     snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-                    for (int i = 1; i <= numStepsPerCircle; ++i) {
-                        double t = 2.0 * M_PI * i / numStepsPerCircle;
-                        double px = cxOuter + rContour * std::cos(t);
-                        double py = cyOuter + rContour * std::sin(t);
+                    for (int i = 1; i <= M; ++i) {
+                        int idx = i % M;
+                        double px = sampledContour[idx].x;
+                        double py = sampledContour[idx].y;
                         snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", px, py); out << buf;
                     }
                 }
