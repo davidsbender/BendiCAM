@@ -4,8 +4,7 @@
 - [x] Not all UI elements appear in WxSmith. Verify and correct WxSmith project files.
 - [x] Fix GCODE export. See square.bcam, square.csv, square.cnc.
   The part consists of two extruded squares, but the GCODE is for circles.
-
-- For circles and arcs, use G2/G3 IJK CNC commands for circular interpolation on the machine.
+- [x] For circles and arcs, use G2/G3 IJK CNC commands for circular interpolation on the machine.
 
 - Render circles, arcs, ellipses, splines etc. as such in the drawing.
   For the 3D Part View, the current implementation with linear sections is fine, keep it as is.
