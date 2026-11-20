@@ -1,0 +1,1471 @@
+/***************************************************************
+ * Name:      BendiCAMMain.cpp
+ * Purpose:   Code for Application Frame
+ * Author:    David Bender (d_bender@bluewin.ch)
+ * Created:   2026-02-12
+ * Copyright: David Bender ()
+ * License:
+ **************************************************************/
+
+#include "BendiCAMMain.h"
+#include <wx/msgdlg.h>
+#include <mmsystem.h>
+#include <joystickapi.h>
+
+//(*InternalHeaders(BendiCAMFrame)
+#include <wx/intl.h>
+#include <wx/string.h>
+//*)
+
+//helper functions
+enum wxbuildinfoformat {
+    short_f, long_f };
+
+wxString wxbuildinfo(wxbuildinfoformat format)
+{
+    wxString wxbuild(wxVERSION_STRING);
+
+    if (format == long_f )
+    {
+#if defined(__WXMSW__)
+        wxbuild << _T("-Windows");
+#elif defined(__UNIX__)
+        wxbuild << _T("-Linux");
+#endif
+
+#if wxUSE_UNICODE
+        wxbuild << _T("-Unicode build");
+#else
+        wxbuild << _T("-ANSI build");
+#endif // wxUSE_UNICODE
+    }
+
+    return wxbuild;
+}
+
+//(*IdInit(BendiCAMFrame)
+const wxWindowID BendiCAMFrame::ID_PANEL1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_PANEL2 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICBOX3 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_CHECKLISTBOX1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICBOX4 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TREECTRL1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL2 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_BUTTON1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_BUTTON2 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_CHECKBOX1 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICBOX2 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL1 = wxNewId();
+const wxWindowID BendiCAMFrame::idMenuOpen = wxNewId();
+const wxWindowID BendiCAMFrame::ID_MENUITEM1 = wxNewId();
+const wxWindowID BendiCAMFrame::idMenuAbout = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TIMER = wxNewId();
+//*)
+
+BEGIN_EVENT_TABLE(BendiCAMFrame,wxFrame)
+    //(*EventTable(BendiCAMFrame)
+    //*)
+END_EVENT_TABLE()
+
+BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
+{
+    //(*Initialize(BendiCAMFrame)
+    wxMenu* Menu1;
+    wxMenu* Menu2;
+    wxMenuBar* MenuBar1;
+    wxMenuItem* MenuItem1;
+    wxMenuItem* MenuItem2;
+    wxMenuItem* MenuItemOpen;
+
+    Create(parent, wxID_ANY, _("BendiCAM"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE|wxBORDER_DOUBLE, _T("wxID_ANY"));
+    SetClientSize(wxSize(927,578));
+    PanelDrawing = new wxPanel(this, ID_PANEL1, wxPoint(24,24), wxSize(320,360), wxBORDER_SUNKEN|wxTAB_TRAVERSAL|wxVSCROLL|wxHSCROLL, _T("ID_PANEL1"));
+    PanelDrawing->SetBackgroundColour(wxColour(255,255,255));
+    Panel3D = new wxPanel(this, ID_PANEL2, wxPoint(352,24), wxSize(316,360), wxBORDER_SUNKEN|wxTAB_TRAVERSAL, _T("ID_PANEL2"));
+    Panel3D->SetBackgroundColour(wxColour(245,245,250));
+    StaticBoxLayers = new wxStaticBox(this, ID_STATICBOX3, _("Layers"), wxPoint(680,24), wxSize(223,170), 0, _T("ID_STATICBOX3"));
+    CheckListBoxLayers = new wxCheckListBox(this, ID_CHECKLISTBOX1, wxPoint(692,44), wxSize(199,140), 0, 0, 0, wxDefaultValidator, _T("ID_CHECKLISTBOX1"));
+    StaticBoxParts = new wxStaticBox(this, ID_STATICBOX4, _("Parts"), wxPoint(680,200), wxSize(223,184), 0, _T("ID_STATICBOX4"));
+    TreeCtrlParts = new wxTreeCtrl(this, ID_TREECTRL1, wxPoint(692,220), wxSize(199,56), wxTR_HIDE_ROOT|wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_SINGLE, wxDefaultValidator, _T("ID_TREECTRL1"));
+    StaticTextDepth = new wxStaticText(this, ID_STATICTEXT1, _("Depth (mm):"), wxPoint(692,282), wxDefaultSize, 0, _T("ID_STATICTEXT1"));
+    TextCtrlDepth = new wxTextCtrl(this, ID_TEXTCTRL2, _("5.0"), wxPoint(768,280), wxSize(123,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL2"));
+    ButtonCreatePart = new wxButton(this, ID_BUTTON1, _("Create part"), wxPoint(692,308), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON1"));
+    ButtonAddToPart = new wxButton(this, ID_BUTTON2, _("Add to part"), wxPoint(795,308), wxSize(96,24), 0, wxDefaultValidator, _T("ID_BUTTON2"));
+    CheckBoxClosePolylines = new wxCheckBox(this, ID_CHECKBOX1, _("Close polylines with coinciding ends"), wxPoint(692,338), wxSize(205,38), 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
+    CheckBoxClosePolylines->SetValue(false);
+    StaticBoxStatus = new wxStaticBox(this, ID_STATICBOX2, _("Status"), wxPoint(24,400), wxSize(879,136), 0, _T("ID_STATICBOX2"));
+    TextCtrlStatus = new wxTextCtrl(this, ID_TEXTCTRL1, _("Running\n"), wxPoint(40,424), wxSize(847,96), wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
+    MenuBar1 = new wxMenuBar();
+    Menu1 = new wxMenu();
+    MenuItemOpen = new wxMenuItem(Menu1, idMenuOpen, _("Open\tCtrl-O"), _("Open a file"), wxITEM_NORMAL);
+    Menu1->Append(MenuItemOpen);
+    MenuItem1 = new wxMenuItem(Menu1, ID_MENUITEM1, _("Quit\tAlt-F4"), _("Quit the application"), wxITEM_NORMAL);
+    Menu1->Append(MenuItem1);
+    MenuBar1->Append(Menu1, _("&File"));
+    Menu2 = new wxMenu();
+    MenuItem2 = new wxMenuItem(Menu2, idMenuAbout, _("About\tF1"), _("Show info about this application"), wxITEM_NORMAL);
+    Menu2->Append(MenuItem2);
+    MenuBar1->Append(Menu2, _("Help"));
+    SetMenuBar(MenuBar1);
+    Timer.SetOwner(this, ID_TIMER);
+    Timer.Start(200, false);
+
+    Connect(ID_CHECKLISTBOX1, wxEVT_COMMAND_CHECKLISTBOX_TOGGLED, (wxObjectEventFunction)&BendiCAMFrame::OnCheckListBoxLayersToggled);
+    Connect(ID_TREECTRL1, wxEVT_COMMAND_TREE_SEL_CHANGED, (wxObjectEventFunction)&BendiCAMFrame::OnTreeCtrlPartsSelChanged);
+    Connect(ID_BUTTON1, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnButtonCreatePartClick);
+    Connect(ID_BUTTON2, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnButtonAddToPartClick);
+    Connect(ID_CHECKBOX1, wxEVT_COMMAND_CHECKBOX_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnCheckBoxClosePolylinesClick);
+    TextCtrlDepth->Connect(wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnTextCtrlDepthChange, NULL, this);
+    TextCtrlDepth->Connect(wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnTextCtrlDepthChange, NULL, this);
+    Connect(idMenuOpen, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnOpen);
+    Connect(ID_MENUITEM1, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnQuit);
+    Connect(idMenuAbout, wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&BendiCAMFrame::OnAbout);
+    Connect(ID_TIMER, wxEVT_TIMER, (wxObjectEventFunction)&BendiCAMFrame::OnTimerTrigger);
+    Connect(wxID_ANY, wxEVT_CLOSE_WINDOW, (wxObjectEventFunction)&BendiCAMFrame::OnClose);
+    //*)
+
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    PanelDrawing->SetBackgroundStyle(wxBG_STYLE_PAINT);
+    PanelDrawing->Bind(wxEVT_PAINT, &BendiCAMFrame::OnPanelPaint, this);
+    PanelDrawing->Bind(wxEVT_ERASE_BACKGROUND, &BendiCAMFrame::OnPanelEraseBg, this);
+    PanelDrawing->Bind(wxEVT_MOUSEWHEEL, &BendiCAMFrame::OnPanelMouseWheel, this);
+    PanelDrawing->Bind(wxEVT_MIDDLE_DOWN, &BendiCAMFrame::OnPanelMiddleDown, this);
+    PanelDrawing->Bind(wxEVT_MIDDLE_UP, &BendiCAMFrame::OnPanelMiddleUp, this);
+    PanelDrawing->Bind(wxEVT_MOTION, &BendiCAMFrame::OnPanelMouseMove, this);
+    PanelDrawing->Bind(wxEVT_LEFT_DOWN, &BendiCAMFrame::OnPanelLeftDown, this);
+
+    Panel3D->SetBackgroundStyle(wxBG_STYLE_PAINT);
+    Panel3D->Bind(wxEVT_PAINT, &BendiCAMFrame::OnPanel3DPaint, this);
+    Panel3D->Bind(wxEVT_ERASE_BACKGROUND, &BendiCAMFrame::OnPanel3DEraseBg, this);
+    Panel3D->Bind(wxEVT_LEFT_DOWN, &BendiCAMFrame::OnPanel3DLeftDown, this);
+    Panel3D->Bind(wxEVT_LEFT_UP, &BendiCAMFrame::OnPanel3DLeftUp, this);
+    Panel3D->Bind(wxEVT_MIDDLE_DOWN, &BendiCAMFrame::OnPanel3DMiddleDown, this);
+    Panel3D->Bind(wxEVT_MIDDLE_UP, &BendiCAMFrame::OnPanel3DMiddleUp, this);
+    Panel3D->Bind(wxEVT_MOTION, &BendiCAMFrame::OnPanel3DMouseMove, this);
+    Panel3D->Bind(wxEVT_MOUSEWHEEL, &BendiCAMFrame::OnPanel3DMouseWheel, this);
+
+    preparsedData = nullptr;
+
+    UpdatePartButtonStates();
+}
+
+BendiCAMFrame::~BendiCAMFrame()
+{
+    //(*Destroy(BendiCAMFrame)
+    //*)
+    if (preparsedData != nullptr) {
+        free(preparsedData);
+    }
+}
+
+void BendiCAMFrame::OnAbout(wxCommandEvent& event)
+{
+    wxString msg = wxbuildinfo(long_f);
+    wxMessageBox(msg, _("Welcome to..."));
+}
+
+void BendiCAMFrame::getMinMaxDepth(double& minDepth, double& maxDepth) const
+{
+    minDepth = 1e9;
+    maxDepth = -1e9;
+    bool found = false;
+    for (const auto& part : m_parts) {
+        for (const auto& shape : part.shapes) {
+            if (shape.depth < minDepth) minDepth = shape.depth;
+            if (shape.depth > maxDepth) maxDepth = shape.depth;
+            found = true;
+        }
+    }
+    if (!found) {
+        minDepth = maxDepth = 0.0;
+    }
+}
+
+wxColour BendiCAMFrame::getDepthColor(double depth, double minDepth, double maxDepth) const
+{
+    if (maxDepth <= minDepth) {
+        return wxColour(0, 220, 255); // Default Cyan glow
+    }
+    double t = (depth - minDepth) / (maxDepth - minDepth);
+    t = std::max(0.0, std::min(1.0, t));
+
+    unsigned char r, g, b;
+    if (t < 0.5) {
+        double factor = t / 0.5;
+        r = (unsigned char)(0 + factor * 255);
+        g = (unsigned char)(220 + factor * 0);
+        b = (unsigned char)(255 * (1.0 - factor));
+    } else {
+        double factor = (t - 0.5) / 0.5;
+        r = 255;
+        g = (unsigned char)(220 * (1.0 - factor));
+        b = 0;
+    }
+    return wxColour(r, g, b);
+}
+
+void BendiCAMFrame::RebuildPartsTree()
+{
+    TreeCtrlParts->DeleteAllItems();
+    wxTreeItemId rootId = TreeCtrlParts->AddRoot(_("Parts"));
+
+    for (int pIdx = 0; pIdx < (int)m_parts.size(); ++pIdx) {
+        const auto& part = m_parts[pIdx];
+        wxTreeItemId partId = TreeCtrlParts->AppendItem(rootId, wxString::FromUTF8(part.name.c_str()), -1, -1, new PartTreeItemData(pIdx, -1));
+
+        for (int sIdx = 0; sIdx < (int)part.shapes.size(); ++sIdx) {
+            const auto& shape = part.shapes[sIdx];
+            wxString shapeLabel = wxString::Format(_("Shape %d (Depth: %.1f mm)"), sIdx + 1, shape.depth);
+            TreeCtrlParts->AppendItem(partId, shapeLabel, -1, -1, new PartTreeItemData(pIdx, sIdx));
+        }
+
+        TreeCtrlParts->Expand(partId);
+    }
+}
+
+void BendiCAMFrame::OnTreeCtrlPartsSelChanged(wxTreeEvent& event)
+{
+    wxTreeItemId item = event.GetItem();
+    if (item.IsOk()) {
+        PartTreeItemData* data = (PartTreeItemData*)TreeCtrlParts->GetItemData(item);
+        if (data) {
+            m_selectedPartIndex = data->partIndex;
+            m_selectedShapeInPartIndex = data->shapeIndex;
+
+            if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
+                if (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)m_parts[m_selectedPartIndex].shapes.size()) {
+                    double d = m_parts[m_selectedPartIndex].shapes[m_selectedShapeInPartIndex].depth;
+                    TextCtrlDepth->ChangeValue(wxString::Format(_("%.1f"), d));
+                } else if (!m_parts[m_selectedPartIndex].shapes.empty()) {
+                    double d = m_parts[m_selectedPartIndex].shapes[0].depth;
+                    TextCtrlDepth->ChangeValue(wxString::Format(_("%.1f"), d));
+                }
+            }
+        } else {
+            m_selectedPartIndex = -1;
+            m_selectedShapeInPartIndex = -1;
+        }
+    } else {
+        m_selectedPartIndex = -1;
+        m_selectedShapeInPartIndex = -1;
+    }
+
+    UpdatePartButtonStates();
+    PanelDrawing->Refresh();
+    Panel3D->Refresh();
+}
+
+void BendiCAMFrame::OnTextCtrlDepthChange(wxCommandEvent& event)
+{
+    if (m_selectedPartIndex < 0 || m_selectedPartIndex >= (int)m_parts.size())
+        return;
+
+    wxString depthStr = TextCtrlDepth->GetValue();
+    double newDepth = 5.0;
+    if (!depthStr.ToDouble(&newDepth)) return;
+
+    if (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)m_parts[m_selectedPartIndex].shapes.size()) {
+        m_parts[m_selectedPartIndex].shapes[m_selectedShapeInPartIndex].depth = newDepth;
+
+        wxTreeItemId selectedItem = TreeCtrlParts->GetSelection();
+        if (selectedItem.IsOk()) {
+            wxString shapeLabel = wxString::Format(_("Shape %d (Depth: %.1f mm)"), m_selectedShapeInPartIndex + 1, newDepth);
+            TreeCtrlParts->SetItemText(selectedItem, shapeLabel);
+        }
+        PanelDrawing->Refresh();
+        Panel3D->Refresh();
+    }
+}
+
+void BendiCAMFrame::OnCheckBoxClosePolylinesClick(wxCommandEvent& event)
+{
+    bool isChecked = CheckBoxClosePolylines->IsChecked();
+    TextCtrlStatus->AppendText(wxString::Format(_("Close polylines with coinciding ends: %s\n"), isChecked ? _("Enabled") : _("Disabled")));
+}
+
+void BendiCAMFrame::UpdatePartButtonStates()
+{
+    bool hasShape = !m_selectedIndices.empty();
+    bool hasPart = (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size());
+
+    ButtonCreatePart->Enable(hasShape && !hasPart);
+    ButtonAddToPart->Enable(hasShape && hasPart);
+}
+
+void BendiCAMFrame::OnButtonCreatePartClick(wxCommandEvent& event)
+{
+    if (m_selectedIndices.empty())
+        return;
+
+    double depthVal = 5.0;
+    wxString depthStr = TextCtrlDepth->GetValue();
+    depthStr.ToDouble(&depthVal);
+
+    CamPart part;
+    part.id = m_nextPartId++;
+
+    CamShape shape;
+    shape.shapeId = 1;
+    shape.depth = depthVal;
+    shape.entityIndices = m_selectedIndices;
+
+    part.shapes.push_back(shape);
+    part.name = wxString::Format(_("Part %d (%zu shape(s))"), part.id, part.shapes.size()).ToStdString();
+
+    m_parts.push_back(part);
+
+    m_selectedIndices.clear();
+    RebuildPartsTree();
+
+    m_selectedPartIndex = (int)m_parts.size() - 1;
+    m_selectedShapeInPartIndex = -1;
+    UpdatePartButtonStates();
+
+    TextCtrlStatus->AppendText(wxString::Format(_("Created Part %d (Depth %.1f mm) with %zu element(s)\n"),
+                                               part.id, depthVal, shape.entityIndices.size()));
+    PanelDrawing->Refresh();
+    Panel3D->Refresh();
+}
+
+void BendiCAMFrame::OnButtonAddToPartClick(wxCommandEvent& event)
+{
+    if (m_selectedPartIndex < 0 || m_selectedPartIndex >= (int)m_parts.size() || m_selectedIndices.empty())
+        return;
+
+    double depthVal = 5.0;
+    wxString depthStr = TextCtrlDepth->GetValue();
+    depthStr.ToDouble(&depthVal);
+
+    CamPart& part = m_parts[m_selectedPartIndex];
+
+    CamShape shape;
+    shape.shapeId = (int)part.shapes.size() + 1;
+    shape.depth = depthVal;
+    shape.entityIndices = m_selectedIndices;
+
+    part.shapes.push_back(shape);
+    part.name = wxString::Format(_("Part %d (%zu shape(s))"), part.id, part.shapes.size()).ToStdString();
+
+    m_selectedIndices.clear();
+    RebuildPartsTree();
+
+    UpdatePartButtonStates();
+
+    TextCtrlStatus->AppendText(wxString::Format(_("Added Shape %d (Depth %.1f mm, %zu element(s)) to Part %d\n"),
+                                               shape.shapeId, depthVal, shape.entityIndices.size(), part.id));
+    PanelDrawing->Refresh();
+    Panel3D->Refresh();
+}
+
+void BendiCAMFrame::OnOpen(wxCommandEvent& event)
+{
+    wxFileDialog openFileDialog(this, _("Open DXF File"), "", "",
+                                _("DXF Files (*.dxf)|*.dxf|All Files (*.*)|*.*"),
+                                wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+
+    if (openFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    wxString filename = openFileDialog.GetPath();
+    if (m_dxfModel.loadFromFile(filename.ToStdString())) {
+        m_zoom = 1.0;
+        m_panX = 0.0;
+        m_panY = 0.0;
+        m_isDragging = false;
+        m_selectedIndices.clear();
+        m_parts.clear();
+        m_selectedPartIndex = -1;
+        m_selectedShapeInPartIndex = -1;
+        m_nextPartId = 1;
+
+        TreeCtrlParts->DeleteAllItems();
+        UpdatePartButtonStates();
+
+        CheckListBoxLayers->Clear();
+        for (const auto& layer : m_dxfModel.layers) {
+            int idx = CheckListBoxLayers->Append(wxString::FromUTF8(layer.name.c_str()));
+            CheckListBoxLayers->Check(idx, layer.visible);
+        }
+
+        TextCtrlStatus->AppendText(wxString::Format(_("Loaded DXF: %s (%zu entities, %zu layers)\n"),
+                                                   filename, m_dxfModel.entities.size(), m_dxfModel.layers.size()));
+        PanelDrawing->Refresh();
+    } else {
+        TextCtrlStatus->AppendText(wxString::Format(_("Failed to load DXF file: %s\n"), filename));
+    }
+}
+
+void BendiCAMFrame::OnCheckListBoxLayersToggled(wxCommandEvent& event)
+{
+    unsigned int n = CheckListBoxLayers->GetCount();
+    for (unsigned int i = 0; i < n; ++i) {
+        wxString name = CheckListBoxLayers->GetString(i);
+        bool checked = CheckListBoxLayers->IsChecked(i);
+        DxfLayer* layer = m_dxfModel.findLayer(name.ToStdString());
+        if (layer) {
+            layer->visible = checked;
+        }
+    }
+    m_selectedIndices.clear();
+    m_dxfModel.calculateBoundingBox();
+    PanelDrawing->Refresh();
+}
+
+void BendiCAMFrame::OnPanelEraseBg(wxEraseEvent& event)
+{
+}
+
+void BendiCAMFrame::OnPanel3DEraseBg(wxEraseEvent& event)
+{
+}
+
+void BendiCAMFrame::OnPanel3DLeftDown(wxMouseEvent& event)
+{
+    m_isDragging3DRot = true;
+    m_lastMousePos3D = event.GetPosition();
+    if (!Panel3D->HasCapture()) {
+        Panel3D->CaptureMouse();
+    }
+}
+
+void BendiCAMFrame::OnPanel3DLeftUp(wxMouseEvent& event)
+{
+    if (m_isDragging3DRot) {
+        m_isDragging3DRot = false;
+        if (Panel3D->HasCapture()) {
+            Panel3D->ReleaseMouse();
+        }
+    }
+}
+
+void BendiCAMFrame::OnPanel3DMiddleDown(wxMouseEvent& event)
+{
+    m_isDragging3DPan = true;
+    m_lastMousePos3D = event.GetPosition();
+    if (!Panel3D->HasCapture()) {
+        Panel3D->CaptureMouse();
+    }
+}
+
+void BendiCAMFrame::OnPanel3DMiddleUp(wxMouseEvent& event)
+{
+    if (m_isDragging3DPan) {
+        m_isDragging3DPan = false;
+        if (Panel3D->HasCapture()) {
+            Panel3D->ReleaseMouse();
+        }
+    }
+}
+
+void BendiCAMFrame::OnPanel3DMouseMove(wxMouseEvent& event)
+{
+    if (m_isDragging3DRot && event.LeftIsDown()) {
+        wxPoint currentPos = event.GetPosition();
+        int dx = currentPos.x - m_lastMousePos3D.x;
+        int dy = currentPos.y - m_lastMousePos3D.y;
+
+        m_rotY3D += dx * 0.5;
+        m_rotX3D += dy * 0.5;
+
+        m_lastMousePos3D = currentPos;
+        Panel3D->Refresh();
+    } else if (m_isDragging3DPan && event.MiddleIsDown()) {
+        wxPoint currentPos = event.GetPosition();
+        int dx = currentPos.x - m_lastMousePos3D.x;
+        int dy = currentPos.y - m_lastMousePos3D.y;
+
+        m_panX3D += dx;
+        m_panY3D += dy;
+
+        m_lastMousePos3D = currentPos;
+        Panel3D->Refresh();
+    } else {
+        if (m_isDragging3DRot && !event.LeftIsDown()) {
+            m_isDragging3DRot = false;
+            if (Panel3D->HasCapture()) Panel3D->ReleaseMouse();
+        }
+        if (m_isDragging3DPan && !event.MiddleIsDown()) {
+            m_isDragging3DPan = false;
+            if (Panel3D->HasCapture()) Panel3D->ReleaseMouse();
+        }
+    }
+}
+
+void BendiCAMFrame::OnPanel3DMouseWheel(wxMouseEvent& event)
+{
+    int rotation = event.GetWheelRotation();
+    if (rotation == 0) return;
+
+    double zoomFactor = (rotation > 0) ? 1.15 : (1.0 / 1.15);
+    m_zoom3D *= zoomFactor;
+    if (m_zoom3D < 0.05) m_zoom3D = 0.05;
+    if (m_zoom3D > 200.0) m_zoom3D = 200.0;
+
+    Panel3D->Refresh();
+}
+
+void BendiCAMFrame::OnPanelMiddleDown(wxMouseEvent& event)
+{
+    m_isDragging = true;
+    m_lastMousePos = event.GetPosition();
+    if (!PanelDrawing->HasCapture()) {
+        PanelDrawing->CaptureMouse();
+    }
+}
+
+void BendiCAMFrame::OnPanelMiddleUp(wxMouseEvent& event)
+{
+    if (m_isDragging) {
+        m_isDragging = false;
+        if (PanelDrawing->HasCapture()) {
+            PanelDrawing->ReleaseMouse();
+        }
+    }
+}
+
+void BendiCAMFrame::OnPanelMouseMove(wxMouseEvent& event)
+{
+    if (m_isDragging && event.MiddleIsDown()) {
+        wxPoint currentPos = event.GetPosition();
+        int dx = currentPos.x - m_lastMousePos.x;
+        int dy = currentPos.y - m_lastMousePos.y;
+
+        m_panX += dx;
+        m_panY += dy;
+
+        m_lastMousePos = currentPos;
+        PanelDrawing->Refresh();
+    } else if (m_isDragging && !event.MiddleIsDown()) {
+        m_isDragging = false;
+        if (PanelDrawing->HasCapture()) {
+            PanelDrawing->ReleaseMouse();
+        }
+    }
+}
+
+void BendiCAMFrame::OnPanelMouseWheel(wxMouseEvent& event)
+{
+    if (!m_dxfModel.bbox.valid || m_dxfModel.entities.empty())
+        return;
+
+    int rotation = event.GetWheelRotation();
+    if (rotation == 0) return;
+
+    wxSize size = PanelDrawing->GetClientSize();
+    int pw = size.GetWidth();
+    int ph = size.GetHeight();
+    if (pw <= 0 || ph <= 0) return;
+
+    double margin = 20.0;
+    double availW = pw - 2.0 * margin;
+    double availH = ph - 2.0 * margin;
+    if (availW <= 0 || availH <= 0) return;
+
+    double bboxW = m_dxfModel.bbox.maxX - m_dxfModel.bbox.minX;
+    double bboxH = m_dxfModel.bbox.maxY - m_dxfModel.bbox.minY;
+    if (bboxW <= 0.000001) bboxW = 1.0;
+    if (bboxH <= 0.000001) bboxH = 1.0;
+
+    double baseScale = std::min(availW / bboxW, availH / bboxH);
+    double oldScale = baseScale * m_zoom;
+
+    double zoomFactor = (rotation > 0) ? 1.15 : (1.0 / 1.15);
+    double newZoom = m_zoom * zoomFactor;
+
+    if (newZoom < 0.05) newZoom = 0.05;
+    if (newZoom > 200.0) newZoom = 200.0;
+
+    double newScale = baseScale * newZoom;
+
+    wxPoint mousePos = event.GetPosition();
+    double mx = mousePos.x;
+    double my = mousePos.y;
+
+    double baseOffsetX_old = margin + (availW - bboxW * oldScale) / 2.0;
+    double baseOffsetY_old = margin + (availH - bboxH * oldScale) / 2.0;
+    double totalOffsetX_old = baseOffsetX_old + m_panX;
+    double totalOffsetY_old = baseOffsetY_old + m_panY;
+
+    double dxfX = m_dxfModel.bbox.minX + (mx - totalOffsetX_old) / oldScale;
+    double dxfY = m_dxfModel.bbox.maxY - (my - totalOffsetY_old) / oldScale;
+
+    m_zoom = newZoom;
+
+    double baseOffsetX_new = margin + (availW - bboxW * newScale) / 2.0;
+    double baseOffsetY_new = margin + (availH - bboxH * newScale) / 2.0;
+
+    m_panX = mx - baseOffsetX_new - (dxfX - m_dxfModel.bbox.minX) * newScale;
+    m_panY = my - baseOffsetY_new - (m_dxfModel.bbox.maxY - dxfY) * newScale;
+
+    PanelDrawing->Refresh();
+}
+
+void BendiCAMFrame::OnPanelLeftDown(wxMouseEvent& event)
+{
+    if (!m_dxfModel.bbox.valid || m_dxfModel.entities.empty())
+        return;
+
+    wxSize size = PanelDrawing->GetClientSize();
+    int pw = size.GetWidth();
+    int ph = size.GetHeight();
+    if (pw <= 0 || ph <= 0) return;
+
+    double margin = 20.0;
+    double availW = pw - 2.0 * margin;
+    double availH = ph - 2.0 * margin;
+    if (availW <= 0 || availH <= 0) return;
+
+    double bboxW = m_dxfModel.bbox.maxX - m_dxfModel.bbox.minX;
+    double bboxH = m_dxfModel.bbox.maxY - m_dxfModel.bbox.minY;
+    if (bboxW <= 0.000001) bboxW = 1.0;
+    if (bboxH <= 0.000001) bboxH = 1.0;
+
+    double baseScale = std::min(availW / bboxW, availH / bboxH);
+    double scale = baseScale * m_zoom;
+
+    double drawnW = bboxW * scale;
+    double drawnH = bboxH * scale;
+
+    double offsetX = margin + (availW - drawnW) / 2.0 + m_panX;
+    double offsetY = margin + (availH - drawnH) / 2.0 + m_panY;
+
+    wxPoint mousePos = event.GetPosition();
+    double clickX = m_dxfModel.bbox.minX + (mousePos.x - offsetX) / scale;
+    double clickY = m_dxfModel.bbox.maxY - (mousePos.y - offsetY) / scale;
+
+    double tolerancePx = 10.0;
+    double toleranceDxf = tolerancePx / scale;
+
+    int clickedEntityIdx = m_dxfModel.hitTest(clickX, clickY, toleranceDxf);
+    if (clickedEntityIdx >= 0) {
+        bool closeCoinciding = CheckBoxClosePolylines->IsChecked();
+        m_selectedIndices = m_dxfModel.findConnectedEntities((size_t)clickedEntityIdx, 2.0 / scale, closeCoinciding);
+        TextCtrlStatus->AppendText(wxString::Format(_("Selected shape (%zu connected element(s))\n"), m_selectedIndices.size()));
+    } else {
+        m_selectedIndices.clear();
+        m_selectedPartIndex = -1;
+        m_selectedShapeInPartIndex = -1;
+        TreeCtrlParts->UnselectAll();
+        TextCtrlStatus->AppendText(_("Selection cleared\n"));
+    }
+
+    UpdatePartButtonStates();
+    PanelDrawing->Refresh();
+}
+
+void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
+{
+    wxAutoBufferedPaintDC dc(PanelDrawing);
+    dc.SetBackground(*wxWHITE_BRUSH);
+    dc.Clear();
+
+    if (!m_dxfModel.bbox.valid || m_dxfModel.entities.empty()) {
+        return;
+    }
+
+    wxSize size = PanelDrawing->GetClientSize();
+    int pw = size.GetWidth();
+    int ph = size.GetHeight();
+    if (pw <= 0 || ph <= 0) return;
+
+    double margin = 20.0;
+    double availW = pw - 2.0 * margin;
+    double availH = ph - 2.0 * margin;
+    if (availW <= 0 || availH <= 0) return;
+
+    double bboxW = m_dxfModel.bbox.maxX - m_dxfModel.bbox.minX;
+    double bboxH = m_dxfModel.bbox.maxY - m_dxfModel.bbox.minY;
+
+    if (bboxW <= 0.000001) bboxW = 1.0;
+    if (bboxH <= 0.000001) bboxH = 1.0;
+
+    double baseScale = std::min(availW / bboxW, availH / bboxH);
+    double scale = baseScale * m_zoom;
+
+    double drawnW = bboxW * scale;
+    double drawnH = bboxH * scale;
+
+    double offsetX = margin + (availW - drawnW) / 2.0 + m_panX;
+    double offsetY = margin + (availH - drawnH) / 2.0 + m_panY;
+
+    auto ToScreen = [&](double x, double y) -> wxPoint {
+        int px = (int)(offsetX + (x - m_dxfModel.bbox.minX) * scale);
+        int py = (int)(offsetY + (m_dxfModel.bbox.maxY - y) * scale);
+        return wxPoint(px, py);
+    };
+
+    auto drawEntityGeometry = [&](const DxfEntity& entity) {
+        if (entity.type == DxfEntityType::LINE && entity.points.size() >= 2) {
+            wxPoint p1 = ToScreen(entity.points[0].x, entity.points[0].y);
+            wxPoint p2 = ToScreen(entity.points[1].x, entity.points[1].y);
+            dc.DrawLine(p1, p2);
+        }
+        else if ((entity.type == DxfEntityType::POLYLINE || entity.type == DxfEntityType::SPLINE) && entity.points.size() >= 2) {
+            std::vector<wxPoint> pts;
+            pts.reserve(entity.points.size());
+            for (const auto& pt : entity.points) {
+                pts.push_back(ToScreen(pt.x, pt.y));
+            }
+            dc.DrawLines((int)pts.size(), pts.data());
+            if (entity.isClosed && pts.size() > 2) {
+                dc.DrawLine(pts.back(), pts.front());
+            }
+        }
+        else if (entity.type == DxfEntityType::CIRCLE) {
+            wxPoint center = ToScreen(entity.center.x, entity.center.y);
+            int r = (int)(entity.radius * scale);
+            dc.SetBrush(*wxTRANSPARENT_BRUSH);
+            dc.DrawCircle(center, std::max(1, r));
+        }
+        else if (entity.type == DxfEntityType::ARC) {
+            double startRad = entity.startAngle * M_PI / 180.0;
+            double endRad = entity.endAngle * M_PI / 180.0;
+            if (endRad <= startRad) endRad += 2.0 * M_PI;
+
+            int steps = std::max(8, (int)(std::abs(endRad - startRad) / (M_PI / 36.0)));
+            wxPoint prevPt;
+            for (int i = 0; i <= steps; ++i) {
+                double t = startRad + (endRad - startRad) * i / steps;
+                double ax = entity.center.x + entity.radius * std::cos(t);
+                double ay = entity.center.y + entity.radius * std::sin(t);
+                wxPoint pt = ToScreen(ax, ay);
+                if (i > 0) {
+                    dc.DrawLine(prevPt, pt);
+                }
+                prevPt = pt;
+            }
+        }
+        else if (entity.type == DxfEntityType::ELLIPSE) {
+            int steps = 36;
+            wxPoint prevPt;
+            double startP = entity.startParam;
+            double endP = entity.endParam;
+            if (endP <= startP) endP += 2.0 * M_PI;
+
+            for (int i = 0; i <= steps; ++i) {
+                double t = startP + (endP - startP) * i / steps;
+                double ex = entity.center.x + entity.majorAxis.x * std::cos(t) - entity.majorAxis.y * entity.ratio * std::sin(t);
+                double ey = entity.center.y + entity.majorAxis.y * std::cos(t) + entity.majorAxis.x * entity.ratio * std::sin(t);
+                wxPoint pt = ToScreen(ex, ey);
+                if (i > 0) {
+                    dc.DrawLine(prevPt, pt);
+                }
+                prevPt = pt;
+            }
+        }
+        else if (entity.type == DxfEntityType::SOLID && entity.points.size() >= 4) {
+            std::vector<wxPoint> pts;
+            pts.push_back(ToScreen(entity.points[0].x, entity.points[0].y));
+            pts.push_back(ToScreen(entity.points[1].x, entity.points[1].y));
+            pts.push_back(ToScreen(entity.points[3].x, entity.points[3].y));
+            pts.push_back(ToScreen(entity.points[2].x, entity.points[2].y));
+            dc.DrawLines((int)pts.size(), pts.data());
+            dc.DrawLine(pts.back(), pts.front());
+        }
+        else if (entity.type == DxfEntityType::TEXT && !entity.points.empty() && !entity.textString.empty()) {
+            wxPoint pt = ToScreen(entity.points[0].x, entity.points[0].y);
+            dc.DrawText(wxString::FromUTF8(entity.textString.c_str()), pt);
+        }
+        else if (entity.type == DxfEntityType::POINT && !entity.points.empty()) {
+            wxPoint pt = ToScreen(entity.points[0].x, entity.points[0].y);
+            dc.DrawPoint(pt);
+        }
+    };
+
+    // Pass 0: Selected Part / Shape Highlighter Pass (glowing depth-gradient shadow pen underneath)
+    double minDepth = 0.0, maxDepth = 0.0;
+    getMinMaxDepth(minDepth, maxDepth);
+
+    if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
+        const auto& part = m_parts[m_selectedPartIndex];
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+
+        for (int sIdx = 0; sIdx < (int)part.shapes.size(); ++sIdx) {
+            const auto& shape = part.shapes[sIdx];
+            wxColour glowCol = getDepthColor(shape.depth, minDepth, maxDepth);
+
+            int penWidth = 5;
+            if (m_selectedShapeInPartIndex >= 0) {
+                if (sIdx == m_selectedShapeInPartIndex) penWidth = 7;
+                else penWidth = 4;
+            }
+
+            dc.SetPen(wxPen(glowCol, penWidth, wxPENSTYLE_SOLID));
+            for (size_t idx : shape.entityIndices) {
+                if (idx < m_dxfModel.entities.size()) {
+                    const auto& entity = m_dxfModel.entities[idx];
+                    const DxfLayer* layer = m_dxfModel.findLayer(entity.layerName);
+                    if (!layer || layer->visible) {
+                        drawEntityGeometry(entity);
+                    }
+                }
+            }
+        }
+    }
+
+    // Pass 1: Selection Highlighter Pass (glowing amber/gold shadow pen underneath)
+    if (!m_selectedIndices.empty()) {
+        wxColour highlightCol(255, 200, 0); // Gold / Amber glow
+        dc.SetPen(wxPen(highlightCol, 5, wxPENSTYLE_SOLID));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        for (size_t idx : m_selectedIndices) {
+            if (idx < m_dxfModel.entities.size()) {
+                const auto& entity = m_dxfModel.entities[idx];
+                const DxfLayer* layer = m_dxfModel.findLayer(entity.layerName);
+                if (!layer || layer->visible) {
+                    drawEntityGeometry(entity);
+                }
+            }
+        }
+    }
+
+    // Pass 2: Normal Rendering Pass
+    for (const auto& entity : m_dxfModel.entities) {
+        const DxfLayer* layer = m_dxfModel.findLayer(entity.layerName);
+        if (layer && !layer->visible) {
+            continue;
+        }
+
+        DxfColor color = m_dxfModel.getEntityColor(entity);
+        wxColour wxCol(color.r, color.g, color.b);
+        dc.SetPen(wxPen(wxCol, 1, wxPENSTYLE_SOLID));
+        dc.SetTextForeground(wxCol);
+
+        drawEntityGeometry(entity);
+    }
+}
+
+void BendiCAMFrame::OnPanel3DPaint(wxPaintEvent& event)
+{
+    wxAutoBufferedPaintDC dc(Panel3D);
+    dc.SetBackground(wxBrush(wxColour(245, 245, 250)));
+    dc.Clear();
+
+    wxSize size = Panel3D->GetClientSize();
+    int pw = size.GetWidth();
+    int ph = size.GetHeight();
+    if (pw <= 0 || ph <= 0) return;
+
+    dc.SetFont(wxFont(9, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD));
+    dc.SetTextForeground(wxColour(80, 80, 90));
+    dc.DrawText(_("3D Part View"), 10, 8);
+
+    if (m_selectedPartIndex < 0 || m_selectedPartIndex >= (int)m_parts.size()) {
+        dc.SetFont(wxFont(9, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_ITALIC, wxFONTWEIGHT_NORMAL));
+        dc.SetTextForeground(wxColour(140, 140, 150));
+        dc.DrawText(_("Select a Part to view 3D extrusion"), 10, 30);
+        return;
+    }
+
+    const auto& part = m_parts[m_selectedPartIndex];
+    if (part.shapes.empty()) return;
+
+    DxfBoundingBox bbox3D;
+    double maxPartDepth = 0.0;
+
+    for (const auto& shape : part.shapes) {
+        maxPartDepth = std::max(maxPartDepth, shape.depth);
+        for (size_t idx : shape.entityIndices) {
+            if (idx < m_dxfModel.entities.size()) {
+                const auto& ent = m_dxfModel.entities[idx];
+                for (const auto& pt : ent.points) {
+                    bbox3D.update(pt.x, pt.y);
+                }
+                if (ent.type == DxfEntityType::CIRCLE || ent.type == DxfEntityType::ARC) {
+                    bbox3D.update(ent.center.x - ent.radius, ent.center.y - ent.radius);
+                    bbox3D.update(ent.center.x + ent.radius, ent.center.y + ent.radius);
+                }
+            }
+        }
+    }
+
+    if (!bbox3D.valid) return;
+
+    double minDepth = 0.0, maxDepthAll = 0.0;
+    getMinMaxDepth(minDepth, maxDepthAll);
+
+    double bboxW = bbox3D.maxX - bbox3D.minX;
+    double bboxH = bbox3D.maxY - bbox3D.minY;
+    double bboxZ = maxPartDepth;
+
+    if (bboxW <= 0.000001) bboxW = 1.0;
+    if (bboxH <= 0.000001) bboxH = 1.0;
+    if (bboxZ <= 0.000001) bboxZ = 1.0;
+
+    double centerX = (bbox3D.minX + bbox3D.maxX) / 2.0;
+    double centerY = (bbox3D.minY + bbox3D.maxY) / 2.0;
+    double centerZ = maxPartDepth / 2.0;
+
+    double diag = std::sqrt(bboxW * bboxW + bboxH * bboxH + bboxZ * bboxZ);
+    double margin = 30.0;
+    double availDim = std::min(pw - 2.0 * margin, ph - 2.0 * margin);
+    double baseScale = availDim / (diag * 1.2);
+    double scale3D = baseScale * m_zoom3D;
+
+    double rotXRad = m_rotX3D * M_PI / 180.0;
+    double rotYRad = m_rotY3D * M_PI / 180.0;
+
+    double cosX = std::cos(rotXRad), sinX = std::sin(rotXRad);
+    double cosY = std::cos(rotYRad), sinY = std::sin(rotYRad);
+
+    auto Project3D = [&](double x, double y, double z) -> wxPoint {
+        double dx = x - centerX;
+        double dy = y - centerY;
+        double dz = z - centerZ;
+
+        double x1 = dx * cosY + dz * sinY;
+        double y1 = dy;
+        double z1 = -dx * sinY + dz * cosY;
+
+        double x2 = x1;
+        double y2 = y1 * cosX - z1 * sinX;
+
+        int px = (int)(pw / 2.0 + m_panX3D + x2 * scale3D);
+        int py = (int)(ph / 2.0 + m_panY3D - y2 * scale3D);
+        return wxPoint(px, py);
+    };
+
+    // Draw Axes first
+    wxPoint origin = Project3D(centerX, centerY, 0.0);
+    wxPoint xAxis = Project3D(centerX + bboxW * 0.3, centerY, 0.0);
+    wxPoint yAxis = Project3D(centerX, centerY + bboxH * 0.3, 0.0);
+    wxPoint zAxis = Project3D(centerX, centerY, maxPartDepth * 0.5);
+
+    dc.SetPen(wxPen(wxColour(220, 100, 100), 1, wxPENSTYLE_DOT));
+    dc.DrawLine(origin, xAxis);
+    dc.SetPen(wxPen(wxColour(100, 200, 100), 1, wxPENSTYLE_DOT));
+    dc.DrawLine(origin, yAxis);
+    dc.SetPen(wxPen(wxColour(100, 100, 220), 1, wxPENSTYLE_DOT));
+    dc.DrawLine(origin, zAxis);
+
+    // --- 1. SOLID FACES GENERATION AND RENDERING ---
+    // World light direction vector (upper-right-top)
+    const double wlx = 0.35, wly = 0.35, wlz = 0.866; // Normalized (0.35, 0.35, 0.866)
+
+    struct DxfPoint3D {
+        double x = 0.0, y = 0.0, z = 0.0;
+    };
+
+    struct LineSegment3D {
+        wxPoint p1;
+        wxPoint p2;
+        wxColour color;
+        int penWidth = 1;
+
+        LineSegment3D(wxPoint a, wxPoint b, wxColour c, int w = 1)
+            : p1(a), p2(b), color(c), penWidth(w) {}
+    };
+
+    struct Face3D {
+        std::vector<wxPoint> screenPts;
+        std::vector<LineSegment3D> outlineEdges;
+        double sortKey = 0.0;
+        double avgZView = 0.0;
+        double minZView = 0.0;
+        double maxZView = 0.0;
+        double nxWorld = 0.0, nyWorld = 0.0, nzWorld = 1.0;
+        bool isFrontFacing = true;
+    };
+
+    auto BuildFace3D = [&](const std::vector<DxfPoint3D>& worldPts, double nxW, double nyW, double nzW) -> Face3D {
+        Face3D face;
+        face.nxWorld = nxW;
+        face.nyWorld = nyW;
+        face.nzWorld = nzW;
+
+        size_t count = worldPts.size();
+        if (count < 3) return face;
+
+        double sumZ = 0.0;
+        double sumXWorld = 0.0, sumYWorld = 0.0, sumZWorld = 0.0;
+        double minZ = 1e9;
+        double maxZ = -1e9;
+        face.screenPts.reserve(count);
+
+        for (size_t k = 0; k < count; ++k) {
+            sumXWorld += worldPts[k].x;
+            sumYWorld += worldPts[k].y;
+            sumZWorld += worldPts[k].z;
+
+            double dx = worldPts[k].x - centerX;
+            double dy = worldPts[k].y - centerY;
+            double dz = worldPts[k].z - centerZ;
+
+            double x1 = dx * cosY + dz * sinY;
+            double y1 = dy;
+            double z1 = -dx * sinY + dz * cosY;
+
+            double x2 = x1;
+            double y2 = y1 * cosX - z1 * sinX;
+            double z2 = y1 * sinX + z1 * cosX;
+
+            int px = (int)(pw / 2.0 + m_panX3D + x2 * scale3D);
+            int py = (int)(ph / 2.0 + m_panY3D - y2 * scale3D);
+
+            face.screenPts.push_back(wxPoint(px, py));
+            sumZ += z2;
+            if (z2 < minZ) minZ = z2;
+            if (z2 > maxZ) maxZ = z2;
+        }
+        face.avgZView = sumZ / count;
+        face.minZView = minZ;
+        face.maxZView = maxZ;
+
+        double V_z = cosY * cosX;
+        double V_x = -sinY * cosX;
+        double V_y = sinX;
+
+        double cdz = (sumZWorld / count) - centerZ;
+        double cdx = (sumXWorld / count) - centerX;
+        double cdy = (sumYWorld / count) - centerY;
+
+        face.sortKey = cdz * V_z + 0.02 * (cdx * V_x + cdy * V_y);
+
+        double ny1 = nyW;
+        double nz1 = -nxW * sinY + nzW * cosY;
+        double nz2 = ny1 * sinX + nz1 * cosX;
+
+        face.isFrontFacing = (nz2 > -0.01);
+
+        return face;
+    };
+
+    struct ShapePath {
+        std::vector<DxfPoint> pts;
+        bool isClosed = false;
+    };
+
+    struct BuiltShape3D {
+        int shapeIndex = 0;
+        double depth = 0.0;
+        wxColour highlightCol;
+        std::vector<ShapePath> paths;
+        std::vector<Face3D> sideFaces;
+        std::vector<Face3D> topCapFaces;
+        std::vector<Face3D> bottomCapFaces;
+    };
+
+    std::vector<BuiltShape3D> builtShapes;
+    std::vector<Face3D> allRenderFaces;
+
+    for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
+        const auto& shape = part.shapes[sIdx];
+        wxColour shapeCol = getDepthColor(shape.depth, minDepth, maxDepthAll);
+
+        BuiltShape3D bShape;
+        bShape.shapeIndex = (int)sIdx;
+        bShape.depth = shape.depth;
+        bShape.highlightCol = shapeCol;
+
+        std::vector<ShapePath> rawPaths;
+
+        for (size_t idx : shape.entityIndices) {
+            if (idx >= m_dxfModel.entities.size()) continue;
+            const auto& entity = m_dxfModel.entities[idx];
+            const DxfLayer* layer = m_dxfModel.findLayer(entity.layerName);
+            if (layer && !layer->visible) continue;
+
+            std::vector<DxfPoint> geomPoints;
+            if (entity.type == DxfEntityType::LINE && entity.points.size() >= 2) {
+                geomPoints = { entity.points[0], entity.points[1] };
+            } else if ((entity.type == DxfEntityType::POLYLINE || entity.type == DxfEntityType::SPLINE) && entity.points.size() >= 2) {
+                geomPoints = entity.points;
+            } else if (entity.type == DxfEntityType::CIRCLE) {
+                int steps = 32;
+                for (int i = 0; i < steps; ++i) {
+                    double t = 2.0 * M_PI * i / steps;
+                    geomPoints.push_back(DxfPoint(entity.center.x + entity.radius * std::cos(t),
+                                                  entity.center.y + entity.radius * std::sin(t)));
+                }
+            } else if (entity.type == DxfEntityType::ARC) {
+                double startRad = entity.startAngle * M_PI / 180.0;
+                double endRad = entity.endAngle * M_PI / 180.0;
+                if (endRad <= startRad) endRad += 2.0 * M_PI;
+                int steps = std::max(8, (int)(std::abs(endRad - startRad) / (M_PI / 36.0)));
+                for (int i = 0; i <= steps; ++i) {
+                    double t = startRad + (endRad - startRad) * i / steps;
+                    geomPoints.push_back(DxfPoint(entity.center.x + entity.radius * std::cos(t),
+                                                  entity.center.y + entity.radius * std::sin(t)));
+                }
+            } else if (entity.type == DxfEntityType::ELLIPSE) {
+                int steps = 36;
+                double startP = entity.startParam;
+                double endP = entity.endParam;
+                if (endP <= startP) endP += 2.0 * M_PI;
+                for (int i = 0; i <= steps; ++i) {
+                    double t = startP + (endP - startP) * i / steps;
+                    double ex = entity.center.x + entity.majorAxis.x * std::cos(t) - entity.majorAxis.y * entity.ratio * std::sin(t);
+                    double ey = entity.center.y + entity.majorAxis.y * std::cos(t) + entity.majorAxis.x * entity.ratio * std::sin(t);
+                    geomPoints.push_back(DxfPoint(ex, ey));
+                }
+            }
+
+            if (geomPoints.size() < 2) continue;
+
+            bool closed = entity.isClosed || entity.type == DxfEntityType::CIRCLE || entity.type == DxfEntityType::ELLIPSE;
+            double distSq = (geomPoints.front().x - geomPoints.back().x)*(geomPoints.front().x - geomPoints.back().x) +
+                            (geomPoints.front().y - geomPoints.back().y)*(geomPoints.front().y - geomPoints.back().y);
+            if (distSq < 1e-6) {
+                closed = true;
+            }
+
+            if (closed && geomPoints.size() > 2 && distSq < 1e-6) {
+                geomPoints.pop_back();
+            }
+
+            rawPaths.push_back({ geomPoints, closed });
+        }
+
+        std::vector<ShapePath> finalPaths;
+        std::vector<ShapePath> openPaths;
+
+        for (auto& path : rawPaths) {
+            if (path.isClosed) {
+                finalPaths.push_back(path);
+            } else {
+                openPaths.push_back(path);
+            }
+        }
+
+        while (!openPaths.empty()) {
+            ShapePath current = openPaths.back();
+            openPaths.pop_back();
+
+            bool joined = true;
+            while (joined && !current.isClosed) {
+                joined = false;
+                for (size_t i = 0; i < openPaths.size(); ++i) {
+                    auto& candidate = openPaths[i];
+                    double d1 = std::hypot(current.pts.back().x - candidate.pts.front().x, current.pts.back().y - candidate.pts.front().y);
+                    double d2 = std::hypot(current.pts.back().x - candidate.pts.back().x, current.pts.back().y - candidate.pts.back().y);
+                    double d3 = std::hypot(current.pts.front().x - candidate.pts.back().x, current.pts.front().y - candidate.pts.back().y);
+                    double d4 = std::hypot(current.pts.front().x - candidate.pts.front().x, current.pts.front().y - candidate.pts.front().y);
+
+                    double tol = 1e-3;
+                    if (d1 < tol) {
+                        current.pts.insert(current.pts.end(), candidate.pts.begin() + 1, candidate.pts.end());
+                        openPaths.erase(openPaths.begin() + i);
+                        joined = true;
+                        break;
+                    } else if (d2 < tol) {
+                        std::vector<DxfPoint> rev(candidate.pts.rbegin(), candidate.pts.rend());
+                        current.pts.insert(current.pts.end(), rev.begin() + 1, rev.end());
+                        openPaths.erase(openPaths.begin() + i);
+                        joined = true;
+                        break;
+                    } else if (d3 < tol) {
+                        current.pts.insert(current.pts.begin(), candidate.pts.begin(), candidate.pts.end() - 1);
+                        openPaths.erase(openPaths.begin() + i);
+                        joined = true;
+                        break;
+                    } else if (d4 < tol) {
+                        std::vector<DxfPoint> rev(candidate.pts.rbegin(), candidate.pts.rend());
+                        current.pts.insert(current.pts.begin(), rev.begin(), rev.end() - 1);
+                        openPaths.erase(openPaths.begin() + i);
+                        joined = true;
+                        break;
+                    }
+                }
+
+                double closeDist = std::hypot(current.pts.front().x - current.pts.back().x, current.pts.front().y - current.pts.back().y);
+                if (current.pts.size() >= 3 && closeDist < 1e-3) {
+                    current.isClosed = true;
+                    current.pts.pop_back();
+                    break;
+                }
+            }
+
+            finalPaths.push_back(current);
+        }
+
+        bShape.paths = finalPaths;
+        builtShapes.push_back(bShape);
+    }
+
+    // Collect 2D closed boundaries of all shapes for CSG 3D wall splitting & base culling
+    struct Shape2DInfo {
+        size_t shapeIndex;
+        double depth;
+        std::vector<DxfPoint> pts;
+    };
+
+    std::vector<Shape2DInfo> closedShapes2D;
+    for (size_t sIdx = 0; sIdx < builtShapes.size(); ++sIdx) {
+        for (const auto& path : builtShapes[sIdx].paths) {
+            if (path.isClosed && path.pts.size() >= 3) {
+                std::vector<DxfPoint> pts = path.pts;
+                double signedArea = 0.0;
+                size_t n = pts.size();
+                for (size_t i = 0; i < n; ++i) {
+                    size_t nextIdx = (i + 1) % n;
+                    signedArea += (pts[i].x * pts[nextIdx].y - pts[nextIdx].x * pts[i].y);
+                }
+                if (signedArea < 0.0) {
+                    std::reverse(pts.begin(), pts.end());
+                }
+                closedShapes2D.push_back({ sIdx, builtShapes[sIdx].depth, pts });
+            }
+        }
+    }
+
+    auto IsPointInPolygon = [](double px, double py, const std::vector<DxfPoint>& pts) -> bool {
+        bool inside = false;
+        size_t n = pts.size();
+        if (n < 3) return false;
+        for (size_t i = 0, j = n - 1; i < n; j = i++) {
+            double xi = pts[i].x, yi = pts[i].y;
+            double xj = pts[j].x, yj = pts[j].y;
+            bool intersect = ((yi > py) != (yj > py)) &&
+                             (px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    };
+
+    // Build 3D Faces with CSG Wall Splitting & Coplanar Base Culling
+    for (size_t sIdx = 0; sIdx < builtShapes.size(); ++sIdx) {
+        auto& bShape = builtShapes[sIdx];
+        double selfDepth = bShape.depth;
+        wxColour shapeCol = bShape.highlightCol;
+        bool isSelectedShape = (m_selectedShapeInPartIndex == (int)sIdx);
+        int topWidth = isSelectedShape ? 3 : 2;
+        wxColour bottomCol(std::max(0, shapeCol.Red() - 80),
+                           std::max(0, shapeCol.Green() - 80),
+                           std::max(0, shapeCol.Blue() - 80));
+
+        for (auto path : bShape.paths) {
+            size_t n = path.pts.size();
+            if (n < 2) continue;
+
+            // Ensure closed paths are oriented CCW (Counter-Clockwise)
+            if (path.isClosed && n >= 3) {
+                double signedArea = 0.0;
+                for (size_t i = 0; i < n; ++i) {
+                    size_t nextIdx = (i + 1) % n;
+                    signedArea += (path.pts[i].x * path.pts[nextIdx].y - path.pts[nextIdx].x * path.pts[i].y);
+                }
+                if (signedArea < 0.0) {
+                    std::reverse(path.pts.begin(), path.pts.end());
+                }
+            }
+
+            // Side Quads
+            size_t numSegments = path.isClosed ? n : (n - 1);
+            for (size_t i = 0; i < numSegments; ++i) {
+                size_t nextIdx = (i + 1) % n;
+                const auto& p1 = path.pts[i];
+                const auto& p2 = path.pts[nextIdx];
+
+                // Outward normal in 2D
+                double segDx = p2.x - p1.x;
+                double segDy = p2.y - p1.y;
+                double segLen = std::hypot(segDx, segDy);
+                double nxW = 0.0, nyW = 0.0;
+                if (segLen > 1e-9) {
+                    nxW = segDy / segLen;
+                    nyW = -segDx / segLen;
+                }
+
+                // Check 2D segment midpoint against all other shapes
+                double mx = (p1.x + p2.x) / 2.0;
+                double my = (p1.y + p2.y) / 2.0;
+
+                double maxOccludingDepth = 0.0;
+                bool isInsideAnotherBase = false;
+                for (const auto& other : closedShapes2D) {
+                    if (other.shapeIndex == sIdx) continue;
+                    if (IsPointInPolygon(mx, my, other.pts)) {
+                        isInsideAnotherBase = true;
+                        if (other.depth > maxOccludingDepth) {
+                            maxOccludingDepth = other.depth;
+                        }
+                    }
+                }
+
+                double zStart = 0.0;
+                if (isInsideAnotherBase && maxOccludingDepth > 0.0) {
+                    zStart = maxOccludingDepth;
+                }
+
+                if (selfDepth > zStart + 1e-4) {
+                    // Quad from zStart to selfDepth (exposed portion above any occluding body)
+                    std::vector<DxfPoint3D> quad1 = {
+                        { p1.x, p1.y, zStart },
+                        { p2.x, p2.y, zStart },
+                        { p2.x, p2.y, selfDepth },
+                        { p1.x, p1.y, selfDepth }
+                    };
+
+                    Face3D f1 = BuildFace3D(quad1, nxW, nyW, 0.0);
+                    if (f1.isFrontFacing && f1.screenPts.size() == 4) {
+                        f1.outlineEdges.push_back({ f1.screenPts[3], f1.screenPts[2], shapeCol, topWidth });
+                        if (zStart < 1e-4 && !isInsideAnotherBase) {
+                            f1.outlineEdges.push_back({ f1.screenPts[0], f1.screenPts[1], bottomCol, 1 });
+                        }
+                        f1.outlineEdges.push_back({ f1.screenPts[0], f1.screenPts[3], wxColour(120, 125, 135), 1 });
+                        f1.outlineEdges.push_back({ f1.screenPts[1], f1.screenPts[2], wxColour(120, 125, 135), 1 });
+                        bShape.sideFaces.push_back(f1);
+                        allRenderFaces.push_back(f1);
+                    }
+
+                    // Reverse Quad for open paths
+                    if (!path.isClosed) {
+                        std::vector<DxfPoint3D> quad2 = {
+                            { p1.x, p1.y, selfDepth },
+                            { p2.x, p2.y, selfDepth },
+                            { p2.x, p2.y, zStart },
+                            { p1.x, p1.y, zStart }
+                        };
+                        Face3D f2 = BuildFace3D(quad2, -nxW, -nyW, 0.0);
+                        if (f2.isFrontFacing && f2.screenPts.size() == 4) {
+                            f2.outlineEdges.push_back({ f2.screenPts[0], f2.screenPts[1], shapeCol, topWidth });
+                            if (zStart < 1e-4 && !isInsideAnotherBase) {
+                                f2.outlineEdges.push_back({ f2.screenPts[3], f2.screenPts[2], bottomCol, 1 });
+                            }
+                            f2.outlineEdges.push_back({ f2.screenPts[0], f2.screenPts[3], wxColour(120, 125, 135), 1 });
+                            f2.outlineEdges.push_back({ f2.screenPts[1], f2.screenPts[2], wxColour(120, 125, 135), 1 });
+                            bShape.sideFaces.push_back(f2);
+                            allRenderFaces.push_back(f2);
+                        }
+                    }
+                }
+            }
+
+            // Top Cap (+Z normal at Z = selfDepth)
+            if (path.isClosed && n >= 3) {
+                std::vector<DxfPoint3D> topCap(n);
+                for (size_t k = 0; k < n; ++k) {
+                    topCap[k] = { path.pts[k].x, path.pts[k].y, selfDepth };
+                }
+                Face3D fTop = BuildFace3D(topCap, 0.0, 0.0, 1.0);
+                if (fTop.isFrontFacing && fTop.screenPts.size() >= 3) {
+                    size_t count = fTop.screenPts.size();
+                    for (size_t k = 0; k < count; ++k) {
+                        size_t nextK = (k + 1) % count;
+                        fTop.outlineEdges.push_back({ fTop.screenPts[k], fTop.screenPts[nextK], shapeCol, topWidth });
+                    }
+                    bShape.topCapFaces.push_back(fTop);
+                    allRenderFaces.push_back(fTop);
+                }
+
+                // Bottom Cap (-Z normal at Z = 0.0)
+                std::vector<DxfPoint3D> bottomCap(n);
+                for (size_t k = 0; k < n; ++k) {
+                    bottomCap[k] = { path.pts[n - 1 - k].x, path.pts[n - 1 - k].y, 0.0 };
+                }
+                Face3D fBottom = BuildFace3D(bottomCap, 0.0, 0.0, -1.0);
+                if (fBottom.isFrontFacing && fBottom.screenPts.size() >= 3) {
+                    size_t count = fBottom.screenPts.size();
+                    for (size_t k = 0; k < count; ++k) {
+                        size_t nextK = (k + 1) % count;
+                        fBottom.outlineEdges.push_back({ fBottom.screenPts[k], fBottom.screenPts[nextK], bottomCol, 1 });
+                    }
+                    bShape.bottomCapFaces.push_back(fBottom);
+                    allRenderFaces.push_back(fBottom);
+                }
+            }
+        }
+    }
+
+    // Depth sort front-facing faces back-to-front with Line-of-Sight distance key
+    std::sort(allRenderFaces.begin(), allRenderFaces.end(), [](const Face3D& a, const Face3D& b) {
+        if (std::abs(a.sortKey - b.sortKey) > 1e-4) {
+            return a.sortKey < b.sortKey;
+        }
+        if (std::abs(a.avgZView - b.avgZView) > 1e-3) {
+            return a.avgZView < b.avgZView;
+        }
+        if (std::abs(a.maxZView - b.maxZView) > 1e-3) {
+            return a.maxZView < b.maxZView;
+        }
+        return a.minZView < b.minZView;
+    });
+
+    // Render solid faces back-to-front with metallic CAD shading
+    const wxColour baseGray(195, 200, 208);
+
+    for (const auto& face : allRenderFaces) {
+        // World-space diffuse lighting for crisp, rich CAD surface tones
+        double dot = face.nxWorld * wlx + face.nyWorld * wly + face.nzWorld * wlz;
+        double diffuse = std::max(0.0, dot);
+
+        // Transform normal to view space for specular highlights
+        double nx1 = face.nxWorld * cosY + face.nzWorld * sinY;
+        double ny1 = face.nyWorld;
+        double nz1 = -face.nxWorld * sinY + face.nzWorld * cosY;
+
+        double nx2 = nx1;
+        double ny2 = ny1 * cosX - nz1 * sinX;
+        double nz2 = ny1 * sinX + nz1 * cosX;
+
+        // Specular highlight
+        double spec = 0.0;
+        if (diffuse > 0.0) {
+            double hx = 0.4082, hy = 0.4082, hz = 1.8165;
+            double hLen = std::sqrt(hx*hx + hy*hy + hz*hz);
+            if (hLen > 1e-9) {
+                double NdotH = std::max(0.0, (nx2 * hx + ny2 * hy + nz2 * hz) / hLen);
+                spec = std::pow(NdotH, 24) * 0.15;
+            }
+        }
+
+        double ambient = 0.32;
+        double intensity = std::min(1.0, ambient + 0.58 * diffuse);
+
+        int r = std::max(0, std::min(255, (int)(baseGray.Red() * intensity + spec * 255)));
+        int g = std::max(0, std::min(255, (int)(baseGray.Green() * intensity + spec * 255)));
+        int b = std::max(0, std::min(255, (int)(baseGray.Blue() * intensity + spec * 255)));
+
+        wxColour faceColour(r, g, b);
+        dc.SetPen(wxPen(faceColour, 1, wxPENSTYLE_SOLID));
+        dc.SetBrush(wxBrush(faceColour, wxBRUSHSTYLE_SOLID));
+        dc.DrawPolygon((int)face.screenPts.size(), face.screenPts.data());
+
+        // Render face outline edges immediately over the solid polygon
+        for (const auto& edge : face.outlineEdges) {
+            dc.SetPen(wxPen(edge.color, edge.penWidth, wxPENSTYLE_SOLID));
+            dc.DrawLine(edge.p1, edge.p2);
+        }
+    }
+}
+
+void BendiCAMFrame::OnTimerTrigger(wxTimerEvent& event)
+{
+}
+
+WXLRESULT BendiCAMFrame::MSWWindowProc(WXUINT message, WXWPARAM wParam, WXLPARAM lParam) {
+    if (message == WM_INPUT) {
+        UINT dwSize;
+        GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+
+        LPBYTE lpb = new BYTE[dwSize];
+        if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == dwSize) {
+            RAWINPUT* raw = (RAWINPUT*)lpb;
+            if (raw->header.dwType == RIM_TYPEHID) {
+                if (preparsedData == nullptr) {
+                    UINT dataSize = 0;
+                    GetRawInputDeviceInfo(raw->header.hDevice, RIDI_PREPARSEDDATA, NULL, &dataSize);
+                    preparsedData = (PHIDP_PREPARSED_DATA)malloc(dataSize);
+                    GetRawInputDeviceInfo(raw->header.hDevice, RIDI_PREPARSEDDATA, preparsedData, &dataSize);
+
+                    HIDP_CAPS caps;
+                    HidP_GetCaps(preparsedData, &caps);
+                }
+            }
+        }
+        delete[] lpb;
+        return 0;
+    }
+    return wxFrame::MSWWindowProc(message, wParam, lParam);
+}
+
+void BendiCAMFrame::OnQuit(wxCloseEvent& event)
+{
+    Close(true);
+}
+
+void BendiCAMFrame::OnClose(wxCloseEvent& event)
+{
+    Destroy();
+}

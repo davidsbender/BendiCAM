@@ -1,0 +1,8 @@
+# Build output directories
+bin/
+obj/
+
+# IDE transient & harness files
+.opencode/
+cmd.exe.lnk
+NOT USED opencode.jsonc
