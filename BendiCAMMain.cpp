@@ -2446,18 +2446,49 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
         out << "( --- Part " << part.id << ": " << part.name << " --- )\n";
 
         const CamShape* islandShape = nullptr;
-        const CamShape* pocketShape = nullptr;
+        const CamShape* stepShape = nullptr;
 
         for (const auto& shape : part.shapes) {
             if (shape.depth >= topHeight - 1e-4) {
                 islandShape = &shape;
             } else {
-                pocketShape = &shape;
+                if (!stepShape || shape.depth > stepShape->depth) {
+                    stepShape = &shape;
+                }
             }
         }
 
-        if (pocketShape) {
-            double targetZ = pocketShape->depth;
+        auto getShapeCircle = [&](const CamShape& s, double& cx, double& cy, double& r) -> bool {
+            for (size_t idx : s.entityIndices) {
+                if (idx < m_dxfModel.entities.size()) {
+                    const auto& ent = m_dxfModel.entities[idx];
+                    if (ent.type == DxfEntityType::CIRCLE) {
+                        cx = ent.center.x;
+                        cy = ent.center.y;
+                        r = ent.radius;
+                        return true;
+                    }
+                }
+            }
+            auto paths = getShapeClosedPaths(s);
+            if (!paths.empty() && paths[0].size() >= 3) {
+                const auto& pts = paths[0];
+                double sx = 0, sy = 0;
+                for (const auto& p : pts) { sx += p.x; sy += p.y; }
+                cx = sx / pts.size();
+                cy = sy / pts.size();
+                double avgR = 0;
+                for (const auto& p : pts) { avgR += std::hypot(p.x - cx, p.y - cy); }
+                r = avgR / pts.size();
+                return true;
+            }
+            return false;
+        };
+
+        double toolRad = diameter / 2.0;
+
+        if (stepShape) {
+            double targetZ = stepShape->depth;
             snprintf(buf, sizeof(buf), "( Clear milling from Z = %.3f mm down to Z = %.3f mm )\n", topHeight, targetZ);
             out << buf;
 
@@ -2475,7 +2506,39 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                 passZLevels.push_back(targetZ);
             }
 
+            double cx1 = 0, cy1 = 0, r1 = 0;
+            double cx2 = 0, cy2 = 0, r2 = 0;
+            bool hasCircle1 = getShapeCircle(*stepShape, cx1, cy1, r1);
+            bool hasCircle2 = islandShape ? getShapeCircle(*islandShape, cx2, cy2, r2) : false;
+
+            double cx = hasCircle2 ? cx2 : (hasCircle1 ? cx1 : 0.0);
+            double cy = hasCircle2 ? cy2 : (hasCircle1 ? cy1 : 0.0);
+
+            double rInnerLimit = hasCircle2 ? (r2 + toolRad) : toolRad;
+            double rOuterLimit = hasCircle1 ? (r1 - toolRad) : rInnerLimit;
+
+            double stepoverDist = diameter * (stepover / 100.0);
+            if (stepoverDist <= 0.001) stepoverDist = diameter * 0.7;
+
+            std::vector<double> ringRadii;
+            if (rOuterLimit >= rInnerLimit - 1e-4) {
+                double rCur = rInnerLimit;
+                while (rCur <= rOuterLimit + 1e-4) {
+                    ringRadii.push_back(rCur);
+                    if (std::abs(rCur - rOuterLimit) < 1e-4) break;
+                    rCur += stepoverDist;
+                    if (rCur > rOuterLimit && rCur < rOuterLimit + stepoverDist - 1e-4) {
+                        rCur = rOuterLimit;
+                    }
+                }
+                if (ringRadii.empty()) ringRadii.push_back(rInnerLimit);
+            } else {
+                ringRadii.push_back(rInnerLimit);
+            }
+
             int numPasses = (int)passZLevels.size();
+            int numStepsPerCircle = 36;
+
             for (int pIdx = 0; pIdx < numPasses; ++pIdx) {
                 double curZ = passZLevels[pIdx];
                 double prevZ = (pIdx == 0) ? topHeight : passZLevels[pIdx - 1];
@@ -2483,178 +2546,90 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                 snprintf(buf, sizeof(buf), "( Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numPasses, curZ);
                 out << buf;
 
-                // Ramp + Raster clearing
-                snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
-                snprintf(buf, sizeof(buf), "G0 X1.191 Y0.395\n"); out << buf;
-                snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
-                snprintf(buf, sizeof(buf), "G1 X3.939 Y0.395 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
-                snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-                out << "G1 X1.191 Y0.395\n";
-                out << "G1 X8.809 Y0.395\n";
-                out << "G1 X10.063 Y1.795\n";
-                out << "G1 X-0.063 Y1.795\n";
-                out << "G1 X-0.697 Y3.195\n";
-                out << "G1 X4.165 Y3.195\n";
-                out << "G1 X10.697 Y3.195\n";
-                out << "G1 X5.835 Y3.195\n";
-                out << "G1 X-0.965 Y4.595\n";
-                out << "G1 X3.048 Y4.595\n";
-                out << "G1 X10.965 Y4.595\n";
-                out << "G1 X6.952 Y4.595\n";
-                out << "G1 X-0.907 Y5.995\n";
-                out << "G1 X3.281 Y5.995\n";
-                out << "G1 X10.907 Y5.995\n";
-                out << "G1 X6.719 Y5.995\n";
-                out << "G1 X-0.496 Y7.395\n";
-                out << "G1 X10.496 Y7.395\n";
-                out << "G1 X9.616 Y8.795\n";
-                out << "G1 X0.384 Y8.795\n";
-                out << "G1 X2.042 Y10.195\n";
-                out << "G1 X7.958 Y10.195\n";
+                for (size_t ringIdx = 0; ringIdx < ringRadii.size(); ++ringIdx) {
+                    double rRing = ringRadii[ringIdx];
+                    double startX = cx + rRing;
+                    double startY = cy;
 
-                // Island finishing pass
-                if (islandShape) {
-                    out << "( Island finishing pass )\n";
                     snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
-                    out << "G0 X6.995 Y5.000\n";
-                    snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
-                    snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-                    out << "G1 X6.957 Y5.389\n";
-                    out << "G1 X6.843 Y5.764\n";
-                    out << "G1 X6.659 Y6.108\n";
-                    out << "G1 X6.411 Y6.411\n";
-                    out << "G1 X6.108 Y6.659\n";
-                    out << "G1 X5.764 Y6.843\n";
-                    out << "G1 X5.389 Y6.957\n";
-                    out << "G1 X5.000 Y6.995\n";
-                    out << "G1 X4.611 Y6.957\n";
-                    out << "G1 X4.236 Y6.843\n";
-                    out << "G1 X3.892 Y6.659\n";
-                    out << "G1 X3.589 Y6.411\n";
-                    out << "G1 X3.341 Y6.108\n";
-                    out << "G1 X3.157 Y5.764\n";
-                    out << "G1 X3.043 Y5.389\n";
-                    out << "G1 X3.005 Y5.000\n";
-                    out << "G1 X3.043 Y4.611\n";
-                    out << "G1 X3.157 Y4.236\n";
-                    out << "G1 X3.341 Y3.892\n";
-                    out << "G1 X3.589 Y3.589\n";
-                    out << "G1 X3.892 Y3.341\n";
-                    out << "G1 X4.236 Y3.157\n";
-                    out << "G1 X4.611 Y3.043\n";
-                    out << "G1 X5.000 Y3.005\n";
-                    out << "G1 X5.389 Y3.043\n";
-                    out << "G1 X5.764 Y3.157\n";
-                    out << "G1 X6.108 Y3.341\n";
-                    out << "G1 X6.411 Y3.589\n";
-                    out << "G1 X6.659 Y3.892\n";
-                    out << "G1 X6.843 Y4.236\n";
-                    out << "G1 X6.957 Y4.611\n";
-                    out << "G1 X6.995 Y5.000\n";
-                }
+                    snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
+                    snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
 
-                // Perimeter finish pass
-                out << "( Perimeter finish pass )\n";
-                snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
-                out << "G0 X11.005 Y5.000\n";
-                snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
-                snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-                out << "G1 X10.889 Y6.171\n";
-                out << "G1 X10.548 Y7.298\n";
-                out << "G1 X9.993 Y8.336\n";
-                out << "G1 X9.246 Y9.246\n";
-                out << "G1 X8.336 Y9.993\n";
-                out << "G1 X7.298 Y10.548\n";
-                out << "G1 X6.171 Y10.889\n";
-                out << "G1 X5.000 Y11.005\n";
-                out << "G1 X3.829 Y10.889\n";
-                out << "G1 X2.702 Y10.548\n";
-                out << "G1 X1.664 Y9.993\n";
-                out << "G1 X0.754 Y9.246\n";
-                out << "G1 X0.007 Y8.336\n";
-                out << "G1 X-0.548 Y7.298\n";
-                out << "G1 X-0.889 Y6.171\n";
-                out << "G1 X-1.005 Y5.000\n";
-                out << "G1 X-0.889 Y3.829\n";
-                out << "G1 X-0.548 Y2.702\n";
-                out << "G1 X0.007 Y1.664\n";
-                out << "G1 X0.754 Y0.754\n";
-                out << "G1 X1.664 Y0.007\n";
-                out << "G1 X2.702 Y-0.548\n";
-                out << "G1 X3.829 Y-0.889\n";
-                out << "G1 X5.000 Y-1.005\n";
-                out << "G1 X6.171 Y-0.889\n";
-                out << "G1 X7.298 Y-0.548\n";
-                out << "G1 X8.336 Y0.007\n";
-                out << "G1 X9.246 Y0.754\n";
-                out << "G1 X9.993 Y1.664\n";
-                out << "G1 X10.548 Y2.702\n";
-                out << "G1 X10.889 Y3.829\n";
-                out << "G1 X11.005 Y5.000\n";
+                    for (int i = 1; i <= numStepsPerCircle; ++i) {
+                        double t = 2.0 * M_PI * i / numStepsPerCircle;
+                        double px = cx + rRing * std::cos(t);
+                        double py = cy + rRing * std::sin(t);
+                        double pz = prevZ + (curZ - prevZ) * ((double)i / numStepsPerCircle);
+                        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n", px, py, pz, feedZ); out << buf;
+                    }
+
+                    snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+                    for (int i = 1; i <= numStepsPerCircle; ++i) {
+                        double t = 2.0 * M_PI * i / numStepsPerCircle;
+                        double px = cx + rRing * std::cos(t);
+                        double py = cy + rRing * std::sin(t);
+                        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", px, py); out << buf;
+                    }
+                }
             }
         }
 
         // Outer Profile Contour Milling around Part down to Z = 0 mm
         out << "( Outer Profile Contour Milling around Part down to Z = 0.000 mm )\n";
-        double targetZ = 0.0;
+        double targetProfileZ = 0.0;
         std::vector<double> profilePassZLevels;
         double pZ = topHeight - stepdown;
-        while (pZ >= targetZ - 1e-4) {
+        while (pZ >= targetProfileZ - 1e-4) {
             profilePassZLevels.push_back(pZ);
-            if (std::abs(pZ - targetZ) < 1e-4) break;
+            if (std::abs(pZ - targetProfileZ) < 1e-4) break;
             pZ -= stepdown;
-            if (pZ < targetZ && pZ > targetZ - stepdown + 1e-4) {
-                pZ = targetZ;
+            if (pZ < targetProfileZ && pZ > targetProfileZ - stepdown + 1e-4) {
+                pZ = targetProfileZ;
             }
         }
-        if (profilePassZLevels.empty() || profilePassZLevels.back() > targetZ + 1e-4) {
-            profilePassZLevels.push_back(targetZ);
+        if (profilePassZLevels.empty() || profilePassZLevels.back() > targetProfileZ + 1e-4) {
+            profilePassZLevels.push_back(targetProfileZ);
         }
 
-        int numProfPasses = (int)profilePassZLevels.size();
-        for (int pIdx = 0; pIdx < numProfPasses; ++pIdx) {
-            double curZ = profilePassZLevels[pIdx];
-            double prevZ = (pIdx == 0) ? topHeight : profilePassZLevels[pIdx - 1];
+        const CamShape* outerShape = stepShape ? stepShape : (islandShape ? islandShape : nullptr);
+        if (outerShape) {
+            double cxOuter = 0, cyOuter = 0, rOuter = 0;
+            if (getShapeCircle(*outerShape, cxOuter, cyOuter, rOuter)) {
+                double rContour = rOuter + toolRad;
+                int numProfPasses = (int)profilePassZLevels.size();
+                int numStepsPerCircle = 36;
 
-            snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numProfPasses, curZ);
-            out << buf;
-            snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
-            out << "G0 X8.995 Y5.000\n";
-            snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
-            snprintf(buf, sizeof(buf), "G1 X11.743 Y5.000 Z%.3f F%.3f\n", curZ, feedZ); out << buf;
-            snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-            out << "G1 X8.918 Y5.779\n";
-            out << "G1 X8.691 Y6.529\n";
-            out << "G1 X8.322 Y7.220\n";
-            out << "G1 X7.825 Y7.825\n";
-            out << "G1 X7.220 Y8.322\n";
-            out << "G1 X6.529 Y8.691\n";
-            out << "G1 X5.779 Y8.918\n";
-            out << "G1 X5.000 Y8.995\n";
-            out << "G1 X4.221 Y8.918\n";
-            out << "G1 X3.471 Y8.691\n";
-            out << "G1 X2.780 Y8.322\n";
-            out << "G1 X2.175 Y7.825\n";
-            out << "G1 X1.678 Y7.220\n";
-            out << "G1 X1.309 Y6.529\n";
-            out << "G1 X1.082 Y5.779\n";
-            out << "G1 X1.005 Y5.000\n";
-            out << "G1 X1.082 Y4.221\n";
-            out << "G1 X1.309 Y3.471\n";
-            out << "G1 X1.678 Y2.780\n";
-            out << "G1 X2.175 Y2.175\n";
-            out << "G1 X2.780 Y1.678\n";
-            out << "G1 X3.471 Y1.309\n";
-            out << "G1 X4.221 Y1.082\n";
-            out << "G1 X5.000 Y1.005\n";
-            out << "G1 X5.779 Y1.082\n";
-            out << "G1 X6.529 Y1.309\n";
-            out << "G1 X7.220 Y1.678\n";
-            out << "G1 X7.825 Y2.175\n";
-            out << "G1 X8.322 Y2.780\n";
-            out << "G1 X8.691 Y3.471\n";
-            out << "G1 X8.918 Y4.221\n";
-            out << "G1 X8.995 Y5.000\n";
+                for (int pIdx = 0; pIdx < numProfPasses; ++pIdx) {
+                    double curZ = profilePassZLevels[pIdx];
+                    double prevZ = (pIdx == 0) ? topHeight : profilePassZLevels[pIdx - 1];
+
+                    snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numProfPasses, curZ);
+                    out << buf;
+
+                    double startX = cxOuter + rContour;
+                    double startY = cyOuter;
+
+                    snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
+                    snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
+                    snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", prevZ, feedZ); out << buf;
+
+                    for (int i = 1; i <= numStepsPerCircle; ++i) {
+                        double t = 2.0 * M_PI * i / numStepsPerCircle;
+                        double px = cxOuter + rContour * std::cos(t);
+                        double py = cyOuter + rContour * std::sin(t);
+                        double pz = prevZ + (curZ - prevZ) * ((double)i / numStepsPerCircle);
+                        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n", px, py, pz, feedZ); out << buf;
+                    }
+
+                    snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
+                    for (int i = 1; i <= numStepsPerCircle; ++i) {
+                        double t = 2.0 * M_PI * i / numStepsPerCircle;
+                        double px = cxOuter + rContour * std::cos(t);
+                        double py = cyOuter + rContour * std::sin(t);
+                        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", px, py); out << buf;
+                    }
+                }
+            }
         }
     }
 
