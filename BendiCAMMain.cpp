@@ -1565,16 +1565,63 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
             wxPoint p2 = ToScreen(entity.points[1].x, entity.points[1].y);
             dc.DrawLine(p1, p2);
         }
-        else if ((entity.type == DxfEntityType::POLYLINE || entity.type == DxfEntityType::SPLINE) && entity.points.size() >= 2) {
+        else if (entity.type == DxfEntityType::POLYLINE) {
+            if (!entity.polylineVertices.empty()) {
+                size_t count = entity.polylineVertices.size();
+                size_t numSegs = entity.isClosed ? count : (count - 1);
+                for (size_t i = 0; i < numSegs; ++i) {
+                    const auto& v1 = entity.polylineVertices[i];
+                    const auto& v2 = entity.polylineVertices[(i + 1) % count];
+                    double b = v1.bulge;
+                    if (std::abs(b) > 1e-6) {
+                        double dx = v2.x - v1.x;
+                        double dy = v2.y - v1.y;
+                        double d = std::hypot(dx, dy);
+                        if (d > 1e-6) {
+                            double s = (d * (1.0 - b * b)) / (4.0 * b);
+                            double mx = (v1.x + v2.x) / 2.0;
+                            double my = (v1.y + v2.y) / 2.0;
+                            double cx = mx - s * (dy / d);
+                            double cy = my + s * (dx / d);
+
+                            wxPoint pStart = ToScreen(v1.x, v1.y);
+                            wxPoint pEnd = ToScreen(v2.x, v2.y);
+                            wxPoint pCenter = ToScreen(cx, cy);
+
+                            if (pStart != pEnd) {
+                                dc.SetBrush(*wxTRANSPARENT_BRUSH);
+                                if (b > 0) {
+                                    dc.DrawArc(pEnd, pStart, pCenter);
+                                } else {
+                                    dc.DrawArc(pStart, pEnd, pCenter);
+                                }
+                            }
+                        }
+                    } else {
+                        wxPoint p1 = ToScreen(v1.x, v1.y);
+                        wxPoint p2 = ToScreen(v2.x, v2.y);
+                        dc.DrawLine(p1, p2);
+                    }
+                }
+            } else if (entity.points.size() >= 2) {
+                std::vector<wxPoint> pts;
+                pts.reserve(entity.points.size());
+                for (const auto& pt : entity.points) {
+                    pts.push_back(ToScreen(pt.x, pt.y));
+                }
+                dc.DrawLines((int)pts.size(), pts.data());
+                if (entity.isClosed && pts.size() > 2) {
+                    dc.DrawLine(pts.back(), pts.front());
+                }
+            }
+        }
+        else if (entity.type == DxfEntityType::SPLINE && entity.points.size() >= 2) {
             std::vector<wxPoint> pts;
             pts.reserve(entity.points.size());
             for (const auto& pt : entity.points) {
                 pts.push_back(ToScreen(pt.x, pt.y));
             }
-            dc.DrawLines((int)pts.size(), pts.data());
-            if (entity.isClosed && pts.size() > 2) {
-                dc.DrawLine(pts.back(), pts.front());
-            }
+            dc.DrawSpline((int)pts.size(), pts.data());
         }
         else if (entity.type == DxfEntityType::CIRCLE) {
             wxPoint center = ToScreen(entity.center.x, entity.center.y);
@@ -1585,37 +1632,52 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         else if (entity.type == DxfEntityType::ARC) {
             double startRad = entity.startAngle * M_PI / 180.0;
             double endRad = entity.endAngle * M_PI / 180.0;
-            if (endRad <= startRad) endRad += 2.0 * M_PI;
 
-            int steps = std::max(8, (int)(std::abs(endRad - startRad) / (M_PI / 36.0)));
-            wxPoint prevPt;
-            for (int i = 0; i <= steps; ++i) {
-                double t = startRad + (endRad - startRad) * i / steps;
-                double ax = entity.center.x + entity.radius * std::cos(t);
-                double ay = entity.center.y + entity.radius * std::sin(t);
-                wxPoint pt = ToScreen(ax, ay);
-                if (i > 0) {
-                    dc.DrawLine(prevPt, pt);
-                }
-                prevPt = pt;
+            double sx = entity.center.x + entity.radius * std::cos(startRad);
+            double sy = entity.center.y + entity.radius * std::sin(startRad);
+            double ex = entity.center.x + entity.radius * std::cos(endRad);
+            double ey = entity.center.y + entity.radius * std::sin(endRad);
+
+            wxPoint pStart = ToScreen(sx, sy);
+            wxPoint pEnd = ToScreen(ex, ey);
+            wxPoint pCenter = ToScreen(entity.center.x, entity.center.y);
+
+            if (pStart == pEnd) {
+                int r = (int)(entity.radius * scale);
+                dc.SetBrush(*wxTRANSPARENT_BRUSH);
+                dc.DrawCircle(pCenter, std::max(1, r));
+            } else {
+                dc.SetBrush(*wxTRANSPARENT_BRUSH);
+                dc.DrawArc(pEnd, pStart, pCenter);
             }
         }
         else if (entity.type == DxfEntityType::ELLIPSE) {
-            int steps = 36;
-            wxPoint prevPt;
-            double startP = entity.startParam;
-            double endP = entity.endParam;
-            if (endP <= startP) endP += 2.0 * M_PI;
+            wxPoint centerSc = ToScreen(entity.center.x, entity.center.y);
+            double aLen = std::hypot(entity.majorAxis.x, entity.majorAxis.y) * scale;
+            double bLen = aLen * entity.ratio;
+            double angle = std::atan2(entity.majorAxis.y, entity.majorAxis.x);
 
-            for (int i = 0; i <= steps; ++i) {
-                double t = startP + (endP - startP) * i / steps;
-                double ex = entity.center.x + entity.majorAxis.x * std::cos(t) - entity.majorAxis.y * entity.ratio * std::sin(t);
-                double ey = entity.center.y + entity.majorAxis.y * std::cos(t) + entity.majorAxis.x * entity.ratio * std::sin(t);
-                wxPoint pt = ToScreen(ex, ey);
-                if (i > 0) {
-                    dc.DrawLine(prevPt, pt);
+            std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+            if (gc && aLen > 0.5) {
+                gc->SetPen(dc.GetPen());
+                gc->SetBrush(*wxTRANSPARENT_BRUSH);
+                gc->PushState();
+                gc->Translate(centerSc.x, centerSc.y);
+                gc->Rotate(-angle);
+                wxGraphicsPath gpath = gc->CreatePath();
+                bool isFull = (std::abs(entity.endParam - entity.startParam - 2.0 * M_PI) < 1e-3) ||
+                              (entity.startParam == 0.0 && entity.endParam >= 2.0 * M_PI - 1e-3);
+                if (isFull) {
+                    gpath.AddEllipse(-aLen, -bLen, 2.0 * aLen, 2.0 * bLen);
+                } else {
+                    gpath.AddArc(0, 0, aLen, -entity.startParam, -entity.endParam, false);
                 }
-                prevPt = pt;
+                gc->StrokePath(gpath);
+                gc->PopState();
+            } else {
+                int r = (int)(aLen);
+                dc.SetBrush(*wxTRANSPARENT_BRUSH);
+                dc.DrawCircle(centerSc, std::max(1, r));
             }
         }
         else if (entity.type == DxfEntityType::SOLID && entity.points.size() >= 4) {
