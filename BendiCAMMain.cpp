@@ -1591,9 +1591,9 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                             if (pStart != pEnd) {
                                 dc.SetBrush(*wxTRANSPARENT_BRUSH);
                                 if (b > 0) {
-                                    dc.DrawArc(pEnd, pStart, pCenter);
-                                } else {
                                     dc.DrawArc(pStart, pEnd, pCenter);
+                                } else {
+                                    dc.DrawArc(pEnd, pStart, pCenter);
                                 }
                             }
                         }
@@ -1648,7 +1648,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                 dc.DrawCircle(pCenter, std::max(1, r));
             } else {
                 dc.SetBrush(*wxTRANSPARENT_BRUSH);
-                dc.DrawArc(pEnd, pStart, pCenter);
+                dc.DrawArc(pStart, pEnd, pCenter);
             }
         }
         else if (entity.type == DxfEntityType::ELLIPSE) {
