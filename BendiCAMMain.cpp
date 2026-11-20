@@ -325,53 +325,53 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     Panel3D->Reparent(SplitterDraw3D);
 
     StaticBoxLayers->Reparent(PanelRight);
-    CheckListBoxLayers->Reparent(StaticBoxLayers);
+    CheckListBoxLayers->Reparent(PanelRight);
 
     StaticBoxParts->Reparent(PanelRight);
-    TreeCtrlParts->Reparent(StaticBoxParts);
-    StaticTextDepth->Reparent(StaticBoxParts);
-    TextCtrlDepth->Reparent(StaticBoxParts);
-    ButtonCreatePart->Reparent(StaticBoxParts);
-    ButtonAddToPart->Reparent(StaticBoxParts);
-    CheckBoxClosePolylines->Reparent(StaticBoxParts);
-    StaticTextConnTol->Reparent(StaticBoxParts);
-    TextCtrlConnTolerance->Reparent(StaticBoxParts);
+    TreeCtrlParts->Reparent(PanelRight);
+    StaticTextDepth->Reparent(PanelRight);
+    TextCtrlDepth->Reparent(PanelRight);
+    ButtonCreatePart->Reparent(PanelRight);
+    ButtonAddToPart->Reparent(PanelRight);
+    CheckBoxClosePolylines->Reparent(PanelRight);
+    StaticTextConnTol->Reparent(PanelRight);
+    TextCtrlConnTolerance->Reparent(PanelRight);
 
     StaticBoxStatus->Reparent(PanelBottom);
-    TextCtrlStatus->Reparent(StaticBoxStatus);
+    TextCtrlStatus->Reparent(PanelBottom);
 
     // Create Tool Controls
     StaticBoxTool = new wxStaticBox(PanelRight, wxID_ANY, _("Tool (Milling Cutter)"));
 
-    StaticTextToolDiameter = new wxStaticText(StaticBoxTool, wxID_ANY, _("Diameter (mm):"));
-    TextCtrlToolDiameter = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("2"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextToolDiameter = new wxStaticText(PanelRight, wxID_ANY, _("Diameter (mm):"));
+    TextCtrlToolDiameter = new wxTextCtrl(PanelRight, wxID_ANY, _("2"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
-    StaticTextToolRPM = new wxStaticText(StaticBoxTool, wxID_ANY, _("RPM (min^-1):"));
-    TextCtrlToolRPM = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("12000"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextToolRPM = new wxStaticText(PanelRight, wxID_ANY, _("RPM (min^-1):"));
+    TextCtrlToolRPM = new wxTextCtrl(PanelRight, wxID_ANY, _("12000"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
-    StaticTextToolFeedXY = new wxStaticText(StaticBoxTool, wxID_ANY, _("Feed XY (mm/min):"));
-    TextCtrlToolFeedXY = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("500"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextToolFeedXY = new wxStaticText(PanelRight, wxID_ANY, _("Feed XY (mm/min):"));
+    TextCtrlToolFeedXY = new wxTextCtrl(PanelRight, wxID_ANY, _("500"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
-    StaticTextToolFeedZ = new wxStaticText(StaticBoxTool, wxID_ANY, _("Feed Z (mm/min):"));
-    TextCtrlToolFeedZ = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("250"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextToolFeedZ = new wxStaticText(PanelRight, wxID_ANY, _("Feed Z (mm/min):"));
+    TextCtrlToolFeedZ = new wxTextCtrl(PanelRight, wxID_ANY, _("250"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
-    StaticTextToolStepdown = new wxStaticText(StaticBoxTool, wxID_ANY, _("Stepdown (mm):"));
-    TextCtrlToolStepdown = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("1"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextToolStepdown = new wxStaticText(PanelRight, wxID_ANY, _("Stepdown (mm):"));
+    TextCtrlToolStepdown = new wxTextCtrl(PanelRight, wxID_ANY, _("1"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
-    StaticTextToolStepover = new wxStaticText(StaticBoxTool, wxID_ANY, _("Stepover (%):"));
-    TextCtrlToolStepover = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("70"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextToolStepover = new wxStaticText(PanelRight, wxID_ANY, _("Stepover (%):"));
+    TextCtrlToolStepover = new wxTextCtrl(PanelRight, wxID_ANY, _("70"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
-    StaticTextToolRampAngle = new wxStaticText(StaticBoxTool, wxID_ANY, _("Ramp Angle (\xC2\xB0):"));
-    TextCtrlToolRampAngle = new wxTextCtrl(StaticBoxTool, wxID_ANY, _("20"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextToolRampAngle = new wxStaticText(PanelRight, wxID_ANY, _("Ramp Angle (\xB0):"));
+    TextCtrlToolRampAngle = new wxTextCtrl(PanelRight, wxID_ANY, _("20"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
     // Create Material Controls
     StaticBoxMaterial = new wxStaticBox(PanelRight, wxID_ANY, _("Material & Safety"));
 
-    StaticTextMatTopHeight = new wxStaticText(StaticBoxMaterial, wxID_ANY, _("Top Height (mm):"));
-    TextCtrlMatTopHeight = new wxTextCtrl(StaticBoxMaterial, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextMatTopHeight = new wxStaticText(PanelRight, wxID_ANY, _("Top Height (mm):"));
+    TextCtrlMatTopHeight = new wxTextCtrl(PanelRight, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
-    StaticTextSafeZ = new wxStaticText(StaticBoxMaterial, wxID_ANY, _("Safe Z (mm):"));
-    TextCtrlSafeZ = new wxTextCtrl(StaticBoxMaterial, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    StaticTextSafeZ = new wxStaticText(PanelRight, wxID_ANY, _("Safe Z (mm):"));
+    TextCtrlSafeZ = new wxTextCtrl(PanelRight, wxID_ANY, _("10"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
 
     ButtonExportGCode = new wxButton(PanelRight, wxID_ANY, _("Export EdingCNC G-Code..."));
 
@@ -463,88 +463,97 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
     int layersH = 110;
     if (StaticBoxLayers) {
         StaticBoxLayers->SetSize(4, 4, rw - 8, layersH);
-        if (CheckListBoxLayers) CheckListBoxLayers->SetSize(10, 20, rw - 28, layersH - 28);
+        StaticBoxLayers->Lower();
+        if (CheckListBoxLayers) CheckListBoxLayers->SetSize(14, 24, rw - 28, layersH - 28);
     }
 
     int partsY = layersH + 6;
     int partsH = 155;
     if (StaticBoxParts) {
         StaticBoxParts->SetSize(4, partsY, rw - 8, partsH);
+        StaticBoxParts->Lower();
 
         int boxW = rw - 8;
         int bottomPadding = 6;
-        int rowConnTolY = partsH - bottomPadding - 22;
-        if (StaticTextConnTol) StaticTextConnTol->SetSize(10, rowConnTolY + 2, 120, 20);
-        if (TextCtrlConnTolerance) TextCtrlConnTolerance->SetSize(132, rowConnTolY, boxW - 132 - 10, 22);
+        int rowConnTolY = partsY + partsH - bottomPadding - 22;
+        if (StaticTextConnTol) StaticTextConnTol->SetSize(14, rowConnTolY + 2, 120, 20);
+        if (TextCtrlConnTolerance) TextCtrlConnTolerance->SetSize(136, rowConnTolY, 4 + boxW - 136 - 10, 22);
 
         int rowCheckY = rowConnTolY - 24;
-        if (CheckBoxClosePolylines) CheckBoxClosePolylines->SetSize(10, rowCheckY, boxW - 20, 22);
+        if (CheckBoxClosePolylines) CheckBoxClosePolylines->SetSize(14, rowCheckY, boxW - 20, 22);
 
         int rowBtnY = rowCheckY - 26;
         int btnW = (boxW - 20 - 8) / 2;
-        if (ButtonCreatePart) ButtonCreatePart->SetSize(10, rowBtnY, btnW, 24);
-        if (ButtonAddToPart) ButtonAddToPart->SetSize(10 + btnW + 8, rowBtnY, btnW, 24);
+        if (ButtonCreatePart) ButtonCreatePart->SetSize(14, rowBtnY, btnW, 24);
+        if (ButtonAddToPart) ButtonAddToPart->SetSize(14 + btnW + 8, rowBtnY, btnW, 24);
 
         int rowDepthY = rowBtnY - 24;
-        if (StaticTextDepth) StaticTextDepth->SetSize(10, rowDepthY + 2, 70, 20);
-        if (TextCtrlDepth) TextCtrlDepth->SetSize(82, rowDepthY, boxW - 82 - 10, 22);
+        if (StaticTextDepth) StaticTextDepth->SetSize(14, rowDepthY + 2, 70, 20);
+        if (TextCtrlDepth) TextCtrlDepth->SetSize(86, rowDepthY, 4 + boxW - 86 - 10, 22);
 
-        int treeTopY = 18;
+        int treeTopY = partsY + 18;
         int treeH = std::max(20, rowDepthY - 4 - treeTopY);
-        if (TreeCtrlParts) TreeCtrlParts->SetSize(10, treeTopY, boxW - 20, treeH);
+        if (TreeCtrlParts) TreeCtrlParts->SetSize(14, treeTopY, boxW - 20, treeH);
     }
 
     int toolY = partsY + partsH + 6;
     int toolH = 135;
     if (StaticBoxTool) {
         StaticBoxTool->SetSize(4, toolY, rw - 8, toolH);
+        StaticBoxTool->Lower();
 
         int boxW = rw - 8;
-        int midX = boxW / 2;
+        int midX = 4 + boxW / 2;
+        int leftLabelW = 112;
+        int rightLabelW = 112;
 
         // Row 1: Diameter (mm) | RPM (min^-1)
-        int r1Y = 18;
-        if (StaticTextToolDiameter) StaticTextToolDiameter->SetSize(10, r1Y + 2, 95, 20);
-        if (TextCtrlToolDiameter) TextCtrlToolDiameter->SetSize(105, r1Y, midX - 110, 22);
+        int r1Y = toolY + 18;
+        if (StaticTextToolDiameter) StaticTextToolDiameter->SetSize(14, r1Y + 2, leftLabelW, 20);
+        if (TextCtrlToolDiameter) TextCtrlToolDiameter->SetSize(14 + leftLabelW, r1Y, std::max(10, midX - (14 + leftLabelW) - 4), 22);
 
-        if (StaticTextToolRPM) StaticTextToolRPM->SetSize(midX + 5, r1Y + 2, 85, 20);
-        if (TextCtrlToolRPM) TextCtrlToolRPM->SetSize(midX + 90, r1Y, boxW - midX - 95, 22);
+        if (StaticTextToolRPM) StaticTextToolRPM->SetSize(midX + 4, r1Y + 2, rightLabelW, 20);
+        if (TextCtrlToolRPM) TextCtrlToolRPM->SetSize(midX + 4 + rightLabelW, r1Y, std::max(10, (4 + boxW - 8) - (midX + 4 + rightLabelW)), 22);
 
         // Row 2: Feed XY (mm/min) | Feed Z (mm/min)
-        int r2Y = r1Y + 26;
-        if (StaticTextToolFeedXY) StaticTextToolFeedXY->SetSize(10, r2Y + 2, 95, 20);
-        if (TextCtrlToolFeedXY) TextCtrlToolFeedXY->SetSize(105, r2Y, midX - 110, 22);
+        int r2Y = toolY + 44;
+        if (StaticTextToolFeedXY) StaticTextToolFeedXY->SetSize(14, r2Y + 2, leftLabelW, 20);
+        if (TextCtrlToolFeedXY) TextCtrlToolFeedXY->SetSize(14 + leftLabelW, r2Y, std::max(10, midX - (14 + leftLabelW) - 4), 22);
 
-        if (StaticTextToolFeedZ) StaticTextToolFeedZ->SetSize(midX + 5, r2Y + 2, 85, 20);
-        if (TextCtrlToolFeedZ) TextCtrlToolFeedZ->SetSize(midX + 90, r2Y, boxW - midX - 95, 22);
+        if (StaticTextToolFeedZ) StaticTextToolFeedZ->SetSize(midX + 4, r2Y + 2, rightLabelW, 20);
+        if (TextCtrlToolFeedZ) TextCtrlToolFeedZ->SetSize(midX + 4 + rightLabelW, r2Y, std::max(10, (4 + boxW - 8) - (midX + 4 + rightLabelW)), 22);
 
         // Row 3: Stepdown (mm) | Stepover (%)
-        int r3Y = r2Y + 26;
-        if (StaticTextToolStepdown) StaticTextToolStepdown->SetSize(10, r3Y + 2, 95, 20);
-        if (TextCtrlToolStepdown) TextCtrlToolStepdown->SetSize(105, r3Y, midX - 110, 22);
+        int r3Y = toolY + 70;
+        if (StaticTextToolStepdown) StaticTextToolStepdown->SetSize(14, r3Y + 2, leftLabelW, 20);
+        if (TextCtrlToolStepdown) TextCtrlToolStepdown->SetSize(14 + leftLabelW, r3Y, std::max(10, midX - (14 + leftLabelW) - 4), 22);
 
-        if (StaticTextToolStepover) StaticTextToolStepover->SetSize(midX + 5, r3Y + 2, 85, 20);
-        if (TextCtrlToolStepover) TextCtrlToolStepover->SetSize(midX + 90, r3Y, boxW - midX - 95, 22);
+        if (StaticTextToolStepover) StaticTextToolStepover->SetSize(midX + 4, r3Y + 2, rightLabelW, 20);
+        if (TextCtrlToolStepover) TextCtrlToolStepover->SetSize(midX + 4 + rightLabelW, r3Y, std::max(10, (4 + boxW - 8) - (midX + 4 + rightLabelW)), 22);
 
         // Row 4: Ramp Angle
-        int r4Y = r3Y + 26;
-        if (StaticTextToolRampAngle) StaticTextToolRampAngle->SetSize(10, r4Y + 2, 95, 20);
-        if (TextCtrlToolRampAngle) TextCtrlToolRampAngle->SetSize(105, r4Y, midX - 110, 22);
+        int r4Y = toolY + 96;
+        if (StaticTextToolRampAngle) StaticTextToolRampAngle->SetSize(14, r4Y + 2, leftLabelW, 20);
+        if (TextCtrlToolRampAngle) TextCtrlToolRampAngle->SetSize(14 + leftLabelW, r4Y, std::max(10, midX - (14 + leftLabelW) - 4), 22);
     }
 
     int matY = toolY + toolH + 6;
     int matH = 50;
     if (StaticBoxMaterial) {
         StaticBoxMaterial->SetSize(4, matY, rw - 8, matH);
+        StaticBoxMaterial->Lower();
+
         int boxW = rw - 8;
-        int midX = boxW / 2;
-        int r1Y = 18;
+        int midX = 4 + boxW / 2;
+        int leftLabelW = 112;
+        int rightLabelW = 112;
+        int r1Y = matY + 18;
 
-        if (StaticTextMatTopHeight) StaticTextMatTopHeight->SetSize(10, r1Y + 2, 95, 20);
-        if (TextCtrlMatTopHeight) TextCtrlMatTopHeight->SetSize(105, r1Y, midX - 110, 22);
+        if (StaticTextMatTopHeight) StaticTextMatTopHeight->SetSize(14, r1Y + 2, leftLabelW, 20);
+        if (TextCtrlMatTopHeight) TextCtrlMatTopHeight->SetSize(14 + leftLabelW, r1Y, std::max(10, midX - (14 + leftLabelW) - 4), 22);
 
-        if (StaticTextSafeZ) StaticTextSafeZ->SetSize(midX + 5, r1Y + 2, 85, 20);
-        if (TextCtrlSafeZ) TextCtrlSafeZ->SetSize(midX + 90, r1Y, boxW - midX - 95, 22);
+        if (StaticTextSafeZ) StaticTextSafeZ->SetSize(midX + 4, r1Y + 2, rightLabelW, 20);
+        if (TextCtrlSafeZ) TextCtrlSafeZ->SetSize(midX + 4 + rightLabelW, r1Y, std::max(10, (4 + boxW - 8) - (midX + 4 + rightLabelW)), 22);
     }
 
     int btnY = matY + matH + 8;
@@ -563,7 +572,8 @@ void BendiCAMFrame::OnBottomPanelSize(wxSizeEvent& event)
 
     if (StaticBoxStatus) {
         StaticBoxStatus->SetSize(4, 4, bw - 8, bh - 8);
-        if (TextCtrlStatus) TextCtrlStatus->SetSize(10, 20, bw - 28, bh - 28);
+        StaticBoxStatus->Lower();
+        if (TextCtrlStatus) TextCtrlStatus->SetSize(14, 24, bw - 28, bh - 28);
     }
 }
 
