@@ -46,6 +46,7 @@ struct PathPrimitive {
     DxfPoint center;
     double radius = 0.0;
     bool isCCW = true; // true = Counter-Clockwise sweep from startPt to endPt around center
+    bool isSpur = false;
 
     PathPrimitive() = default;
 

@@ -411,7 +411,12 @@ AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path) {
     cleaned.reserve(path.size());
 
     for (const auto& prim : path) {
-        if (isDegeneratePrimitive(prim)) {
+        if (prim.isSpur) {
+            cleaned.push_back(prim);
+            if (cleaned.size() > 1) {
+                cleaned.back().startPt = cleaned[cleaned.size() - 2].endPt;
+            }
+        } else if (isDegeneratePrimitive(prim)) {
             if (!cleaned.empty()) {
                 cleaned.back().endPt = prim.endPt;
             }
