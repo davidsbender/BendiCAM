@@ -1827,7 +1827,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                         ensureLoopOrientation(bLoop, true);
                         procPaths.materialOutline.push_back(bLoop);
 
-                        auto innerPaths = offsetAnalyticalPath(bLoop, -inwardDist);
+                        auto innerPaths = offsetAnalyticalPath(bLoop, inwardDist);
                         for (const auto& inPath : innerPaths) {
                             AnalyticalPath inLoop = inPath;
                             ensureLoopOrientation(inLoop, true);
