@@ -80,7 +80,7 @@ bool findPrimitiveIntersectionBounded(const PathPrimitive& p1, const PathPrimiti
 std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& path, double dist);
 
 // Self-Intersection Pruning & Loop Splitting
-std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary = nullptr, double distFromParent = 0.0);
+std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary = nullptr, double distFromParent = 0.0, bool isOutward = false);
 
 // Concentric Pocket Ring Generation
 std::vector<AnalyticalPath> generatePocketRings(const AnalyticalPath& outerBoundary, double toolRad, double stepoverDist);

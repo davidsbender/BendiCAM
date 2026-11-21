@@ -351,7 +351,7 @@ PathPrimitive offsetSinglePrimitive(const PathPrimitive& prim, double dist) {
             res.radius = -1.0;
             return res;
         }
-        double deltaR = prim.isCCW ? dist : -dist;
+        double deltaR = prim.isCCW ? -dist : dist;
         res.radius = prim.radius + deltaR;
         if (res.radius <= 1e-4) {
             // Arc offset radius collapsed to zero or negative! Mark invalid.
@@ -675,10 +675,11 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
         }
     }
 
-    return pruneSelfIntersectionsAndSplit(rawOffset, &inPath, std::abs(dist));
+    bool isOutward = (dist < 0.0);
+    return pruneSelfIntersectionsAndSplit(rawOffset, &inPath, std::abs(dist), isOutward);
 }
 
-std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary, double distFromParent) {
+std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary, double distFromParent, bool isOutward) {
     std::vector<AnalyticalPath> resultLoops;
     if (path.size() < 3) return resultLoops;
 
@@ -705,9 +706,9 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
         double area = getAnalyticalPathArea(path);
         // Valid interior loop must have strictly positive CCW area
         if (area > 1e-3) {
-            // Verify all control points lie inside parent boundary (if provided)
+            // Verify all control points lie inside parent boundary (if provided and inward offset)
             bool validLocation = true;
-            if (parentBoundary && !parentBoundary->empty()) {
+            if (!isOutward && parentBoundary && !parentBoundary->empty()) {
                 auto samplePts = sampleAnalyticalPath(path, 0.5);
                 int insideCount = 0;
                 for (const auto& pt : samplePts) {
@@ -749,8 +750,8 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
         loop2.back().endPt = splitPt;
     }
 
-    auto clean1 = pruneSelfIntersectionsAndSplit(loop1, parentBoundary, distFromParent);
-    auto clean2 = pruneSelfIntersectionsAndSplit(loop2, parentBoundary, distFromParent);
+    auto clean1 = pruneSelfIntersectionsAndSplit(loop1, parentBoundary, distFromParent, isOutward);
+    auto clean2 = pruneSelfIntersectionsAndSplit(loop2, parentBoundary, distFromParent, isOutward);
 
     resultLoops.insert(resultLoops.end(), clean1.begin(), clean1.end());
     resultLoops.insert(resultLoops.end(), clean2.begin(), clean2.end());

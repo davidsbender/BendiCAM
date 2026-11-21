@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "cadFile": "C:\\Users\\david\\Desktop\\BendiCAM\\examples\\rounded-large.dxf",
+  "settings": {
+    "closeMatchingEndpoints": true,
+    "matchingTolerance": 0.1
+  },
+  "tool": {
+    "diameter": 2,
+    "rpm": 12000,
+    "feedXY": 500,
+    "feedZ": 250,
+    "stepdown": 1,
+    "stepover": 70,
+    "rampAngle": 20
+  },
+  "material": {
+    "topHeight": 10,
+    "safeZ": 10
+  },
+  "layers": [
+    {
+      "name": "0",
+      "visible": true
+    }
+  ],
+  "parts": [
+    {
+      "id": 1,
+      "name": "Part 1 (2 shape(s))",
+      "shapes": [
+        {
+          "shapeId": 1,
+          "depth": 5,
+          "entityIndices": [0, 1, 2, 3]
+        },
+        {
+          "shapeId": 2,
+          "depth": 10,
+          "entityIndices": [4, 5, 6, 7]
+        }
+      ]
+    }
+  ]
+}
