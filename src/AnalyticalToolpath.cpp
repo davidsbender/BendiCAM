@@ -1228,9 +1228,35 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                         activeOuter = nextOuter;
                     }
 
-                    for (const auto& expObs : floorExpandedObstacles) {
-                        if (getAnalyticalPathArea(expObs) > 1e-3 && expObs.size() >= 3) {
-                            rawFloorLoops.push_back(expObs);
+                    for (const auto& obsPath : floorObstacles) {
+                        std::vector<AnalyticalPath> activeObs = offsetAnalyticalPath(obsPath, -toolRad);
+                        int obsPass = 0;
+                        while (!activeObs.empty() && obsPass < maxPasses) {
+                            obsPass++;
+                            std::vector<AnalyticalPath> nextObs;
+                            for (const auto& loop : activeObs) {
+                                if (getAnalyticalPathArea(loop) > 1e-3 && loop.size() >= 3) {
+                                    auto samplePts = sampleAnalyticalPath(loop, 0.5);
+                                    if (!samplePts.empty()) {
+                                        int insideCount = 0;
+                                        for (const auto& pt : samplePts) {
+                                            if (isPointInsideAnalyticalPath(pt, fPath)) {
+                                                insideCount++;
+                                            }
+                                        }
+                                        if ((double)insideCount / samplePts.size() > 0.5) {
+                                            rawFloorLoops.push_back(loop);
+                                            auto outerRings = offsetAnalyticalPath(loop, -stepoverDist);
+                                            for (const auto& oring : outerRings) {
+                                                if (getAnalyticalPathArea(oring) > 1e-3 && oring.size() >= 3) {
+                                                    nextObs.push_back(oring);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            activeObs = nextObs;
                         }
                     }
                 }
