@@ -178,6 +178,17 @@
 			<style>wxTE_RIGHT</style>
 			<handler function="OnToolOrMaterialSettingChange" entry="EVT_TEXT" />
 		</object>
+		<object class="wxStaticText" name="ID_STATICTEXT12" variable="StaticTextToolOvercut" member="yes">
+			<label>Overcut (%):</label>
+			<pos>815,494</pos>
+		</object>
+		<object class="wxTextCtrl" name="ID_TEXTCTRL13" variable="TextCtrlToolOvercut" member="yes">
+			<value>30</value>
+			<pos>880,492</pos>
+			<size>40,22</size>
+			<style>wxTE_RIGHT</style>
+			<handler function="OnToolOrMaterialSettingChange" entry="EVT_TEXT" />
+		</object>
 		<object class="wxStaticBox" name="ID_STATICBOX6" variable="StaticBoxMaterial" member="yes">
 			<label>Material &amp; Safety</label>
 			<pos>680,537</pos>
