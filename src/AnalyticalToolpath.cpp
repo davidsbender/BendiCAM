@@ -872,3 +872,249 @@ void emitAnalyticalLoopGCode(std::ofstream& out, const AnalyticalPath& path,
 
     currentToolPos = path.back().endPt;
 }
+
+HierarchyValidationResult validatePartHierarchy(
+    const DxfModel& model,
+    const std::vector<CamShape>& shapes,
+    double topHeight)
+{
+    HierarchyValidationResult result;
+    if (shapes.size() < 2) return result;
+
+    for (size_t i = 0; i < shapes.size(); ++i) {
+        for (size_t j = i + 1; j < shapes.size(); ++j) {
+            const auto& s1 = shapes[i];
+            const auto& s2 = shapes[j];
+            if (std::abs(s1.depth - s2.depth) < 1e-4) continue;
+
+            const CamShape& taller = (s1.depth > s2.depth) ? s1 : s2;
+            const CamShape& shorter = (s1.depth > s2.depth) ? s2 : s1;
+
+            std::vector<size_t> tallerIndices(taller.entityIndices.begin(), taller.entityIndices.end());
+            std::vector<size_t> shorterIndices(shorter.entityIndices.begin(), shorter.entityIndices.end());
+
+            auto tallerPaths = getShapeAnalyticalPaths(model, tallerIndices);
+            auto shorterPaths = getShapeAnalyticalPaths(model, shorterIndices);
+
+            if (tallerPaths.empty() || shorterPaths.empty()) continue;
+
+            const auto& tallerBoundary = tallerPaths[0];
+            const auto& shorterBoundary = shorterPaths[0];
+
+            auto samplePts = sampleAnalyticalPath(tallerBoundary, 0.5);
+            if (samplePts.empty()) continue;
+
+            int insideCount = 0;
+            for (const auto& pt : samplePts) {
+                if (isPointInsideAnalyticalPath(pt, shorterBoundary)) {
+                    insideCount++;
+                }
+            }
+
+            double ratio = (double)insideCount / samplePts.size();
+
+            auto shorterPts = sampleAnalyticalPath(shorterBoundary, 0.5);
+            int shorterInTallerCount = 0;
+            for (const auto& pt : shorterPts) {
+                if (isPointInsideAnalyticalPath(pt, tallerBoundary)) {
+                    shorterInTallerCount++;
+                }
+            }
+            double shorterRatio = shorterPts.empty() ? 0.0 : (double)shorterInTallerCount / shorterPts.size();
+
+            if (ratio < 0.95 && shorterRatio < 0.95) {
+                result.hasViolation = true;
+                char msg[512];
+                snprintf(msg, sizeof(msg),
+                    "Shape %d (h=%.1fmm) extends outside base Shape %d (h=%.1fmm)",
+                    taller.shapeId, taller.depth, shorter.shapeId, shorter.depth);
+                result.warnings.push_back(msg);
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<HeightBand> computePartHeightBands(
+    const std::vector<CamShape>& shapes,
+    double topHeight)
+{
+    std::vector<double> heights;
+    heights.push_back(topHeight);
+
+    for (const auto& shape : shapes) {
+        if (shape.depth > 0.0 && shape.depth < topHeight - 1e-4) {
+            heights.push_back(shape.depth);
+        }
+    }
+
+    std::sort(heights.begin(), heights.end(), std::greater<double>());
+    heights.erase(std::unique(heights.begin(), heights.end(), [](double a, double b) {
+        return std::abs(a - b) < 1e-4;
+    }), heights.end());
+
+    std::vector<HeightBand> bands;
+    for (size_t i = 0; i + 1 < heights.size(); ++i) {
+        HeightBand band;
+        band.zUpper = heights[i];
+        band.zFloor = heights[i + 1];
+        bands.push_back(band);
+    }
+    return bands;
+}
+
+std::vector<AnalyticalPath> generateBandClearingLoops(
+    const DxfModel& model,
+    const std::vector<CamShape>& shapes,
+    double zUpper,
+    double zFloor,
+    double topHeight,
+    double toolDiameter,
+    double stepoverPercent)
+{
+    std::vector<AnalyticalPath> clearingLoops;
+    double toolRad = toolDiameter / 2.0;
+    double stepoverDist = toolDiameter * (stepoverPercent / 100.0);
+    if (stepoverDist <= 1e-3) stepoverDist = toolDiameter * 0.7;
+    double overrunDist = toolDiameter * (1.0 - stepoverPercent / 100.0);
+    if (overrunDist < 0.0) overrunDist = 0.0;
+
+    double openOffset = toolRad - overrunDist;
+
+    std::vector<AnalyticalPath> obstaclePaths;
+    std::vector<AnalyticalPath> expandedObstacles;
+
+    for (const auto& shape : shapes) {
+        if (shape.depth >= zUpper - 1e-4) {
+            std::vector<size_t> indices(shape.entityIndices.begin(), shape.entityIndices.end());
+            auto paths = getShapeAnalyticalPaths(model, indices);
+            for (auto& p : paths) {
+                ensureLoopOrientation(p, true);
+                obstaclePaths.push_back(p);
+                auto exp = offsetAnalyticalPath(p, -toolRad);
+                for (auto& ep : exp) {
+                    ensureLoopOrientation(ep, true);
+                    expandedObstacles.push_back(ep);
+                }
+            }
+        }
+    }
+
+    for (const auto& shape : shapes) {
+        if (std::abs(shape.depth - zFloor) < 1e-4) {
+            std::vector<size_t> indices(shape.entityIndices.begin(), shape.entityIndices.end());
+            auto floorPaths = getShapeAnalyticalPaths(model, indices);
+
+            for (auto& fPath : floorPaths) {
+                ensureLoopOrientation(fPath, true);
+
+                bool isRecessedPocket = false;
+                for (const auto& obsPath : obstaclePaths) {
+                    auto fSample = sampleAnalyticalPath(fPath, 0.5);
+                    int insideObs = 0;
+                    for (const auto& pt : fSample) {
+                        if (isPointInsideAnalyticalPath(pt, obsPath)) {
+                            insideObs++;
+                        }
+                    }
+                    if (!fSample.empty() && (double)insideObs / fSample.size() > 0.8) {
+                        isRecessedPocket = true;
+                        break;
+                    }
+                }
+
+                if (isRecessedPocket) {
+                    std::vector<AnalyticalPath> pocketRings = generatePocketRings(fPath, toolRad, stepoverDist);
+                    for (const auto& ring : pocketRings) {
+                        if (getAnalyticalPathArea(ring) > 1e-3 && ring.size() >= 3) {
+                            clearingLoops.push_back(ring);
+                        }
+                    }
+                } else {
+                    std::vector<AnalyticalPath> activeOuter = offsetAnalyticalPath(fPath, +openOffset);
+                    int pass = 0;
+                    int maxPasses = 100;
+
+                    while (!activeOuter.empty() && pass < maxPasses) {
+                        pass++;
+                        std::vector<AnalyticalPath> nextOuter;
+                        for (const auto& loop : activeOuter) {
+                            if (getAnalyticalPathArea(loop) > 1e-3 && loop.size() >= 3) {
+                                clearingLoops.push_back(loop);
+                                auto innerRings = offsetAnalyticalPath(loop, +stepoverDist);
+                                for (const auto& ir : innerRings) {
+                                    if (getAnalyticalPathArea(ir) > 1e-3 && ir.size() >= 3) {
+                                        nextOuter.push_back(ir);
+                                    }
+                                }
+                            }
+                        }
+                        activeOuter = nextOuter;
+                    }
+
+                    for (const auto& expObs : expandedObstacles) {
+                        if (getAnalyticalPathArea(expObs) > 1e-3 && expObs.size() >= 3) {
+                            clearingLoops.push_back(expObs);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<AnalyticalPath> finalValidLoops;
+    for (const auto& loop : clearingLoops) {
+        if (loop.size() < 3) continue;
+
+        bool gougesObstacle = false;
+        for (const auto& obsPath : obstaclePaths) {
+            auto samplePts = sampleAnalyticalPath(loop, 0.5);
+            for (const auto& pt : samplePts) {
+                double distToObs = pointToAnalyticalPathDistance(pt, obsPath);
+                if (distToObs < toolRad - 1e-2) {
+                    gougesObstacle = true;
+                    break;
+                }
+            }
+            if (gougesObstacle) break;
+        }
+
+        if (!gougesObstacle) {
+            finalValidLoops.push_back(loop);
+        }
+    }
+
+    return finalValidLoops;
+}
+
+std::vector<AnalyticalPath> generateOuterCutoutPaths(
+    const DxfModel& model,
+    const std::vector<CamShape>& shapes,
+    double toolDiameter)
+{
+    std::vector<AnalyticalPath> cutoutPaths;
+    if (shapes.empty()) return cutoutPaths;
+
+    double toolRad = toolDiameter / 2.0;
+
+    const CamShape* baseShape = &shapes[0];
+    for (const auto& shape : shapes) {
+        if (shape.depth < baseShape->depth) {
+            baseShape = &shape;
+        }
+    }
+
+    std::vector<size_t> indices(baseShape->entityIndices.begin(), baseShape->entityIndices.end());
+    auto baseAnalyticalPaths = getShapeAnalyticalPaths(model, indices);
+
+    for (auto& path : baseAnalyticalPaths) {
+        ensureLoopOrientation(path, true);
+        auto outerContours = offsetAnalyticalPath(path, -toolRad);
+        for (auto& c : outerContours) {
+            ensureLoopOrientation(c, true);
+            cutoutPaths.push_back(c);
+        }
+    }
+
+    return cutoutPaths;
+}

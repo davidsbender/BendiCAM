@@ -48,18 +48,6 @@ public:
 #include "SteeringWheelCtrl.h"
 #include "PositionBarCtrl.h"
 
-struct CamShape {
-    int shapeId = 1;
-    double depth = 5.0;
-    std::set<size_t> entityIndices;
-};
-
-struct CamPart {
-    int id = 1;
-    std::string name;
-    std::vector<CamShape> shapes;
-};
-
 class BendiCAMFrame: public wxFrame
 {
     public:

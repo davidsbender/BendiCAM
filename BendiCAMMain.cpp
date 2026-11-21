@@ -2487,7 +2487,19 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
     if (TextCtrlSafeZ) TextCtrlSafeZ->GetValue().ToDouble(&safeZ);
 
     double retractZ = topHeight + safeZ;
-    char buf[256];
+    char buf[512];
+
+    std::vector<std::string> allHeaderWarnings;
+    for (const auto& part : m_parts) {
+        auto valRes = validatePartHierarchy(m_dxfModel, part.shapes, topHeight);
+        if (valRes.hasViolation) {
+            for (const auto& warnMsg : valRes.warnings) {
+                allHeaderWarnings.push_back(warnMsg);
+                TextCtrlStatus->AppendText(wxString::Format(_("Warning: %s\n"), wxString::FromUTF8(warnMsg.c_str())));
+                std::cerr << "Warning: " << warnMsg << std::endl;
+            }
+        }
+    }
 
     // Header
     out << "( BendiCAM EdingCNC G-Code Export )\n";
@@ -2502,6 +2514,11 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
     snprintf(buf, sizeof(buf), "( Ramp Angle: %.3f deg )\n", rampAngle); out << buf;
     snprintf(buf, sizeof(buf), "( Material Top Height: %.3f mm )\n", topHeight); out << buf;
     snprintf(buf, sizeof(buf), "( Safe Z: %.3f mm )\n", safeZ); out << buf;
+
+    for (const auto& wMsg : allHeaderWarnings) {
+        out << "( WARNING: Containment hierarchy violation detected - " << wMsg << " )\n";
+    }
+
     out << "%\n";
     out << "G21 ( Metric units )\n";
     out << "G90 ( Absolute positioning )\n";
@@ -2523,113 +2540,66 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
     for (const auto& part : m_parts) {
         out << "( --- Part " << part.id << ": " << part.name << " --- )\n";
 
-        const CamShape* islandShape = nullptr;
-        const CamShape* stepShape = nullptr;
+        auto heightBands = computePartHeightBands(part.shapes, topHeight);
 
-        for (const auto& shape : part.shapes) {
-            if (shape.depth >= topHeight - 1e-4) {
-                islandShape = &shape;
-            } else {
-                if (!stepShape || shape.depth > stepShape->depth) {
-                    stepShape = &shape;
-                }
-            }
-        }
+        for (const auto& band : heightBands) {
+            double zUpper = band.zUpper;
+            double zFloor = band.zFloor;
 
-        double toolRad = diameter / 2.0;
-
-        if (stepShape) {
-            double targetZ = stepShape->depth;
-            snprintf(buf, sizeof(buf), "( Clear milling from Z = %.3f mm down to Z = %.3f mm )\n", topHeight, targetZ);
+            snprintf(buf, sizeof(buf), "( Clear milling from Z = %.3f mm down to Z = %.3f mm )\n", zUpper, zFloor);
             out << buf;
 
+            double heightDiff = zUpper - zFloor;
+            int numPasses = (int)std::ceil(heightDiff / stepdown);
+            if (numPasses < 1) numPasses = 1;
+
             std::vector<double> passZLevels;
-            double pZ = topHeight - stepdown;
-            while (pZ >= targetZ - 1e-4) {
+            for (int k = 1; k <= numPasses; ++k) {
+                double pZ = zUpper - k * (heightDiff / numPasses);
                 passZLevels.push_back(pZ);
-                if (std::abs(pZ - targetZ) < 1e-4) break;
-                pZ -= stepdown;
-                if (pZ < targetZ && pZ > targetZ - stepdown + 1e-4) {
-                    pZ = targetZ;
-                }
-            }
-            if (passZLevels.empty() || passZLevels.back() > targetZ + 1e-4) {
-                passZLevels.push_back(targetZ);
             }
 
-            auto stepAnalyticalPaths = getShapeAnalyticalPaths(*stepShape);
-            if (!stepAnalyticalPaths.empty()) {
-                AnalyticalPath outerBoundary = stepAnalyticalPaths[0];
+            auto bandLoops = generateBandClearingLoops(m_dxfModel, part.shapes, zUpper, zFloor, topHeight, diameter, stepover);
 
-                double stepoverDist = diameter * (stepover / 100.0);
-                if (stepoverDist <= 0.001) stepoverDist = diameter * 0.7;
+            for (int pIdx = 0; pIdx < numPasses; ++pIdx) {
+                double curZ = passZLevels[pIdx];
+                double prevZ = (pIdx == 0) ? zUpper : passZLevels[pIdx - 1];
 
-                std::vector<AnalyticalPath> ringLoops = generatePocketRings(outerBoundary, toolRad, stepoverDist);
+                snprintf(buf, sizeof(buf), "( Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numPasses, curZ);
+                out << buf;
 
-                if (islandShape) {
-                    auto islandAnalyticalPaths = getShapeAnalyticalPaths(*islandShape);
-                    if (!islandAnalyticalPaths.empty()) {
-                        std::vector<AnalyticalPath> islandRings = offsetAnalyticalPath(islandAnalyticalPaths[0], -toolRad);
-                        for (const auto& iring : islandRings) {
-                            if (getAnalyticalPathArea(iring) > 1e-3) {
-                                ringLoops.push_back(iring);
-                            }
-                        }
-                    }
-                }
-
-                int numPasses = (int)passZLevels.size();
-                for (int pIdx = 0; pIdx < numPasses; ++pIdx) {
-                    double curZ = passZLevels[pIdx];
-                    double prevZ = (pIdx == 0) ? topHeight : passZLevels[pIdx - 1];
-
-                    snprintf(buf, sizeof(buf), "( Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numPasses, curZ);
-                    out << buf;
-
-                    for (size_t ringIdx = 0; ringIdx < ringLoops.size(); ++ringIdx) {
-                        const auto& loop = ringLoops[ringIdx];
-                        bool isRamping = (ringIdx == 0);
-                        emitAnalyticalLoopGCode(out, loop, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, isRamping, currentToolPos, isRetracted);
-                    }
+                for (size_t loopIdx = 0; loopIdx < bandLoops.size(); ++loopIdx) {
+                    const auto& loop = bandLoops[loopIdx];
+                    bool isRamping = (loopIdx == 0);
+                    emitAnalyticalLoopGCode(out, loop, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, isRamping, currentToolPos, isRetracted);
                 }
             }
         }
 
-        const CamShape* outerShape = islandShape ? islandShape : (stepShape ? stepShape : nullptr);
-        if (outerShape) {
-            double targetProfileZ = (outerShape->depth >= topHeight - 1e-4) ? 0.0 : std::max(0.0, outerShape->depth);
+        auto cutoutPaths = generateOuterCutoutPaths(m_dxfModel, part.shapes, diameter);
+        if (!cutoutPaths.empty()) {
+            double targetProfileZ = 0.0;
             snprintf(buf, sizeof(buf), "( Outer Profile Contour Milling around Part down to Z = %.3f mm )\n", targetProfileZ);
             out << buf;
 
-            std::vector<double> profilePassZLevels;
-            double pZ = topHeight - stepdown;
-            while (pZ >= targetProfileZ - 1e-4) {
-                profilePassZLevels.push_back(pZ);
-                if (std::abs(pZ - targetProfileZ) < 1e-4) break;
-                pZ -= stepdown;
-                if (pZ < targetProfileZ && pZ > targetProfileZ - stepdown + 1e-4) {
-                    pZ = targetProfileZ;
-                }
-            }
-            if (profilePassZLevels.empty() || profilePassZLevels.back() > targetProfileZ + 1e-4) {
-                profilePassZLevels.push_back(targetProfileZ);
+            int numCutoutPasses = (int)std::ceil(topHeight / stepdown);
+            if (numCutoutPasses < 1) numCutoutPasses = 1;
+
+            std::vector<double> cutoutZLevels;
+            for (int k = 1; k <= numCutoutPasses; ++k) {
+                double pZ = topHeight - k * (topHeight / numCutoutPasses);
+                cutoutZLevels.push_back(pZ);
             }
 
-            auto outerAnalyticalPaths = getShapeAnalyticalPaths(*outerShape);
-            for (const auto& path : outerAnalyticalPaths) {
-                std::vector<AnalyticalPath> contourPaths = offsetAnalyticalPath(path, -toolRad);
+            for (int pIdx = 0; pIdx < numCutoutPasses; ++pIdx) {
+                double curZ = cutoutZLevels[pIdx];
+                double prevZ = (pIdx == 0) ? topHeight : cutoutZLevels[pIdx - 1];
 
-                int numProfPasses = (int)profilePassZLevels.size();
-                for (int pIdx = 0; pIdx < numProfPasses; ++pIdx) {
-                    double curZ = profilePassZLevels[pIdx];
-                    double prevZ = (pIdx == 0) ? topHeight : profilePassZLevels[pIdx - 1];
+                snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numCutoutPasses, curZ);
+                out << buf;
 
-                    snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numProfPasses, curZ);
-                    out << buf;
-
-                    for (const auto& contourPath : contourPaths) {
-                        emitAnalyticalLoopGCode(out, contourPath, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, true, currentToolPos, isRetracted);
-                    }
+                for (const auto& contourPath : cutoutPaths) {
+                    emitAnalyticalLoopGCode(out, contourPath, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, true, currentToolPos, isRetracted);
                 }
             }
         }

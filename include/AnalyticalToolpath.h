@@ -3,10 +3,34 @@
 
 #include "DxfParser.h"
 #include <vector>
+#include <set>
+#include <string>
 #include <cmath>
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+
+struct CamShape {
+    int shapeId = 1;
+    double depth = 5.0;
+    std::set<size_t> entityIndices;
+};
+
+struct CamPart {
+    int id = 1;
+    std::string name;
+    std::vector<CamShape> shapes;
+};
+
+struct HierarchyValidationResult {
+    bool hasViolation = false;
+    std::vector<std::string> warnings;
+};
+
+struct HeightBand {
+    double zUpper;
+    double zFloor;
+};
 
 enum class PrimitiveType {
     LINE,
@@ -85,7 +109,12 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
 // Concentric Pocket Ring Generation
 std::vector<AnalyticalPath> generatePocketRings(const AnalyticalPath& outerBoundary, double toolRad, double stepoverDist);
 
-// G-Code Export
+// G-Code Export & Multi-Feature Domain Processing
+HierarchyValidationResult validatePartHierarchy(const DxfModel& model, const std::vector<CamShape>& shapes, double topHeight);
+std::vector<HeightBand> computePartHeightBands(const std::vector<CamShape>& shapes, double topHeight);
+std::vector<AnalyticalPath> generateBandClearingLoops(const DxfModel& model, const std::vector<CamShape>& shapes, double zUpper, double zFloor, double topHeight, double toolDiameter, double stepoverPercent);
+std::vector<AnalyticalPath> generateOuterCutoutPaths(const DxfModel& model, const std::vector<CamShape>& shapes, double toolDiameter);
+
 void emitAnalyticalLoopGCode(std::ofstream& out, const AnalyticalPath& path,
                             double prevZ, double curZ, double feedZ, double feedXY, double retractZ,
                             double rampAngleDeg, bool isRamping, DxfPoint& currentToolPos, bool& isRetracted);
