@@ -411,7 +411,9 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     StaticTextToolStepover->Reparent(PanelRight);
     TextCtrlToolStepover->Reparent(PanelRight);
     StaticTextToolRampAngle->Reparent(PanelRight);
+    StaticTextToolOvercut->Reparent(PanelRight);
     TextCtrlToolRampAngle->Reparent(PanelRight);
+    TextCtrlToolOvercut->Reparent(PanelRight);
 
     StaticBoxMaterial->Reparent(PanelRight);
     StaticTextMatTopHeight->Reparent(PanelRight);
@@ -1833,105 +1835,59 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                         // MaterialToolPath is MaterialOutline reduced or expanded by offsetDist.
                         AnalyticalPath rawToolPath = offsetAnalyticalPathRaw(bLoop, offsetDist);
                         if (rawToolPath.size() >= 2) {
-                            AnalyticalPath cleanTp = cleanDegeneratePrimitives(rawToolPath);
-                            if (cleanTp.size() >= 2) {
+                            AnalyticalPath cleanTpUnspurred = cleanDegeneratePrimitives(rawToolPath);
+                            if (cleanTpUnspurred.size() >= 2) {
+                                AnalyticalPath cleanTp = cleanTpUnspurred;
+                                std::vector<std::pair<DxfPoint, DxfPoint>> spursAtCorners; // stores (vertexPt, apexPt)
+
                                 // If overcutPercent < 50%, add out-and-back bisector spurs at concave corners
                                 if (overcutPercent < 50.0) {
                                     double spurDist = (0.5 - (overcutPercent / 100.0)) * toolDiameter;
                                     if (spurDist > 1e-4) {
                                         AnalyticalPath spurredPath;
-                                        size_t numPrims = cleanTp.size();
+                                        size_t numPrims = cleanTpUnspurred.size();
                                         for (size_t i = 0; i < numPrims; ++i) {
-                                            const auto& prim1 = cleanTp[i];
-                                            const auto& prim2 = cleanTp[(i + 1) % numPrims];
+                                            const auto& prim1 = cleanTpUnspurred[i];
+                                            const auto& prim2 = cleanTpUnspurred[(i + 1) % numPrims];
                                             spurredPath.push_back(prim1);
 
-                                            // Check concavity at vertex joining prim1 and prim2
-                                            // Inward offset (positive dist) means we check if the corner is concave relative to inward offset.
-                                            // Specifically, check corner convexity/concavity using tangent vectors.
                                             DxfPoint t1 = getPrimitiveEndTangent(prim1);
                                             DxfPoint t2 = getPrimitiveStartTangent(prim2);
                                             double crossZ = t1.x * t2.y - t1.y * t2.x;
                                             double dot = t1.x * t2.x + t1.y * t2.y;
                                             double angleTurn = std::atan2(crossZ, dot);
 
-                                            // For CCW loop (orientation true), a concave corner for inward offset (positive offsetDist)
-                                            // has angleTurn < 0 (right turn / inward corner).
-                                            // More precisely, check if angleTurn * offsetDist < -1e-3 (or angleTurn < -1e-3 since offsetDist > 0).
                                             if (angleTurn > 1e-3) {
-                                                // Calculate inward angle bisector vector pointing toward the corner vertex.
-                                                // Tangent t1 leaves vertex along prim1, t2 enters vertex from prim2.
-                                                // The bisector pointing into the corner vertex:
-                                                // Sum of outward directions or inverse of offset direction:
-                                                // Actually, let's find the corner vertex position (prim1.endPt).
                                                 DxfPoint vertexPt = prim1.endPt;
+                                                DxfPoint n1(-t1.y, t1.x); // inward normal of prim1
+                                                DxfPoint n2(-t2.y, t2.x); // inward normal of prim2
 
-                                                // Bisector direction pointing towards the corner vertex (into the material):
-                                                // For a concave corner in CCW orientation, bisector pointing outward towards the apex:
-                                                // Bisector of t1 and t2 pointing outward:
-                                                // t1 points along outgoing edge, t2 points along incoming edge.
-                                                // The inward offset corner apex points outward. Let's compute bisector vector:
-                                                // Inward offset moves away from apex. Out-and-back spur moves towards apex.
-                                                // Apex direction can be found by averaging normal vectors or using bisector of (-t1) and (-t2) or similar.
-                                                // Even simpler: bisector of incoming and outgoing tangents pointing towards apex:
-                                                // Let's compute unit vector bisector:
-                                                // incoming tangent vector (reverse of t2) and outgoing tangent vector (t1)?
-                                                // Let's compute standard corner bisector:
-                                                // Vector bisecting angle:
-                                                double bX = -t2.x + t1.x;
-                                                double bY = -t2.y + t1.y;
-                                                double bLen = std::hypot(bX, bY);
-                                                if (bLen > 1e-6) {
-                                                    bX /= bLen;
-                                                    bY /= bLen;
-                                                    // Ensure bX, bY points towards the material apex (outward).
-                                                    // Test dot product with outward normal of the original shape or check position relative to bLoop.
-                                                    // Since vertexPt is on the inward offset path, moving towards the apex means moving in the direction opposite to offset.
-                                                    // Offset moves inward by offsetDist. So moving outward by spurDist along bisector:
-                                                    // Let's check which side of the edge the material is on, or use the analytical bisector pointing towards apex.
-                                                    // For CCW outer boundary, inward offset is to the left if offsetDist < 0, but here offsetDist > 0 (inward reduction).
-                                                    // Wait! offsetDist > 0 means inward reduction (shifting inward from bLoop).
-                                                    // The corner apex of the inward offset points towards the original boundary.
-                                                    // Thus, the vertexPt IS the inward offset corner. Moving towards the corner means moving towards the original boundary (outward).
-                                                    // The vector pointing from inward offset vertex towards the original boundary along the bisector is given by the normalized sum of inward offset normals or simply:
-                                                    // Let's compute the bisector of the two primitive tangents pointing towards the apex:
-                                                    // Incoming tangent t2 (from prim2 start to end), outgoing t1 (from prim1 start to end).
-                                                    // Normal pointing inward for offset is (-t.y, t.x) for CCW.
-                                                    // For concave corner, both normals point towards the apex intersection.
-                                                    DxfPoint n1(-t1.y, t1.x); // inward normal of prim1
-                                                    DxfPoint n2(-t2.y, t2.x); // inward normal of prim2
-                                                    // For inward reduction (positive offsetDist), offset primitives shifted in direction of n1, n2.
-                                                    // So apex is in direction opposite to n1/n2.
-                                                    // Wait, if offset shifted inward, apex is further inward? No!
-                                                    // Let's re-read user prompt carefully:
-                                                    // "Expand angle bisector from intersection of MaterialToolPath lines towards the corner point, such that the distance is (overcutPercent / 100.0 - 0.5) * toolDiameter."
-                                                    // "For overcutPercent < 50%, at a concave corner (relative to the inward offset), the path reaches the intersection of the two adjacent MaterialToolPath segments, reaches outward along the angle bisector toward the corner by a distance of (0.5 - overcutPercent / 100.0) * toolDiameter, and then doubles back along that exact same bisector segment to the intersection before continuing along the next segment."
+                                                double nx = -n1.x - n2.x;
+                                                double ny = -n1.y - n2.y;
+                                                double nLen = std::hypot(nx, ny);
+                                                if (nLen > 1e-6) {
+                                                    nx /= nLen;
+                                                    ny /= nLen;
 
-                                                    // That is extremely precise! The intersection of the two adjacent MaterialToolPath segments IS `vertexPt` (`prim1.endPt`).
-                                                    // The "corner point" (the sharp corner of the shape/outline or un-offset geometry) is further out towards the apex.
-                                                    // The direction *toward* the corner point (apex) from the intersection point is along the angle bisector pointing outwards (towards the original corner vertex).
-                                                    // How do we compute the vector from the offset intersection point (`vertexPt`) towards the original corner apex?
-                                                    // For an offset distance `dist` (`offsetDist > 0`), the offset line is parallel to the original lines shifted by `dist`.
-                                                    // The distance from the offset intersection `vertexPt` to the original corner apex along the bisector is `offsetDist / cos(theta/2)` where `theta` is the corner angle!
-                                                    // And the user specified the spur extension distance is `(0.5 - overcutPercent / 100.0) * toolDiameter`, which equals `offsetDist`!
-                                                    // Therefore, the apex point (or corner point) can be reached by moving from `vertexPt` along the bisector pointing towards the apex by distance `offsetDist` (which is `spurDist`).
-                                                    // Let's find the bisector direction pointing towards the apex:
-                                                    // Since the offset line was shifted inward by `offsetDist` along the inward normals `n1` and `n2`, the vector pointing from `vertexPt` back towards the original apex is simply the average of `-n1` and `-n2`, normalized!
-                                                    // Or even simpler and more robust: bisector of the two tangents or normals. 
-                                                    // Let's compute bisector vector `bisX, bisY`:
-                                                    double nx = -n1.x - n2.x;
-                                                    double ny = -n1.y - n2.y;
-                                                    double nLen = std::hypot(nx, ny);
-                                                    if (nLen > 1e-6) {
-                                                        nx /= nLen;
-                                                        ny /= nLen;
-                                                        DxfPoint apexPt(vertexPt.x + nx * spurDist, vertexPt.y + ny * spurDist);
-                                                        PathPrimitive s1 = PathPrimitive::CreateLine(vertexPt, apexPt);
-                                                         PathPrimitive s2 = PathPrimitive::CreateLine(apexPt, vertexPt);
-                                                         s1.isSpur = true;
-                                                         s2.isSpur = true;
-                                                         spurredPath.push_back(s1);
-                                                         spurredPath.push_back(s2);
+                                                    double halfAngle = angleTurn * 0.5;
+                                                    double cosHalf = std::cos(halfAngle);
+
+                                                    if (cosHalf > 0.05) {
+                                                        double spurTravelLen = spurDist * ((1.0 / cosHalf) - 1.0);
+
+                                                        if (spurTravelLen > 1e-4) {
+                                                            DxfPoint apexPt(vertexPt.x + nx * spurTravelLen,
+                                                                           vertexPt.y + ny * spurTravelLen);
+
+                                                            PathPrimitive s1 = PathPrimitive::CreateLine(vertexPt, apexPt);
+                                                            PathPrimitive s2 = PathPrimitive::CreateLine(apexPt, vertexPt);
+                                                            s1.isSpur = true;
+                                                            s2.isSpur = true;
+                                                            spurredPath.push_back(s1);
+                                                            spurredPath.push_back(s2);
+
+                                                            spursAtCorners.push_back({vertexPt, apexPt});
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1943,16 +1899,44 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                                 ensureLoopOrientation(cleanTp, true);
                                 procPaths.materialToolPath.push_back(cleanTp);
 
-                                // MaterialCutZoneInner shall now be MaterialToolPath, reduced (inward) by tool radius.
-                                auto innerPaths = offsetAnalyticalPath(cleanTp, toolRadius);
+                                // MaterialCutZoneInner is the inward offset of the un-spurred toolpath
+                                auto innerPaths = offsetAnalyticalPath(cleanTpUnspurred, toolRadius);
                                 for (auto inPath : innerPaths) {
                                     ensureLoopOrientation(inPath, true);
                                     procPaths.materialCutZoneInner.push_back(inPath);
                                 }
 
-                                // MaterialCutZoneOuter shall now be MaterialToolPath, expanded (outward) by tool radius.
-                                auto outerPaths = offsetAnalyticalPath(cleanTp, -toolRadius);
-                                for (auto outPath : outerPaths) {
+                                // MaterialCutZoneOuter: base outward-expanded loop from un-spurred path
+                                double toolRadius = toolDiameter * 0.5;
+                                auto baseOuterPaths = offsetAnalyticalPath(cleanTpUnspurred, -toolRadius);
+
+                                // If overcutPercent < 50% and spurs exist, we update corner arcs at apex A
+                                if (overcutPercent < 50.0 && !spursAtCorners.empty() && !baseOuterPaths.empty()) {
+                                    for (auto& outPath : baseOuterPaths) {
+                                        // For each corner where a spur was generated with apex A:
+                                        // We can update the primitives in outPath.
+                                        // Specifically, check if any arc/vertex corresponds to the corner.
+                                        // Alternatively, since baseOuterPaths contains primitives, let's inspect and replace roll-around arcs centered at vertexPt with arcs centered at apexPt of radius toolRadius.
+                                        for (auto& prim : outPath) {
+                                            if (prim.type == PrimitiveType::ARC && prim.radius > 1e-6) {
+                                                // Check if prim.center is close to any vertexPt where a spur exists
+                                                for (const auto& sp : spursAtCorners) {
+                                                    const DxfPoint& vPt = sp.first;
+                                                    const DxfPoint& aPt = sp.second;
+                                                    double dCenter = std::hypot(prim.center.x - vPt.x, prim.center.y - vPt.y);
+                                                    if (dCenter < 1.0) {
+                                                        // Replace center with apexPt, and recompute startPt and endPt intersection with incoming/outgoing lines.
+                                                        prim.center = aPt;
+                                                        // Ensure radius is toolRadius
+                                                        prim.radius = toolRadius;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                for (auto outPath : baseOuterPaths) {
                                     ensureLoopOrientation(outPath, true);
                                     procPaths.materialCutZoneOuter.push_back(outPath);
                                 }

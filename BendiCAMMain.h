@@ -112,6 +112,8 @@ class BendiCAMFrame: public wxFrame
         static const wxWindowID ID_TEXTCTRL9;
         static const wxWindowID ID_STATICTEXT9;
         static const wxWindowID ID_TEXTCTRL10;
+        static const wxWindowID ID_STATICTEXT12;
+        static const wxWindowID ID_TEXTCTRL13;
         static const wxWindowID ID_STATICBOX6;
         static const wxWindowID ID_STATICTEXT10;
         static const wxWindowID ID_TEXTCTRL11;
@@ -123,8 +125,6 @@ class BendiCAMFrame: public wxFrame
         static const wxWindowID idMenuSaveProject;
         static const wxWindowID ID_MENUITEM1;
         static const wxWindowID idMenuAbout;
-        static const wxWindowID ID_STATICTEXT12;
-        static const wxWindowID ID_TEXTCTRL13;
         static const wxWindowID ID_TIMER;
         //*)
 
@@ -148,11 +148,11 @@ class BendiCAMFrame: public wxFrame
         wxStaticText* StaticTextToolDiameter;
         wxStaticText* StaticTextToolFeedXY;
         wxStaticText* StaticTextToolFeedZ;
+        wxStaticText* StaticTextToolOvercut;
         wxStaticText* StaticTextToolRPM;
         wxStaticText* StaticTextToolRampAngle;
         wxStaticText* StaticTextToolStepdown;
         wxStaticText* StaticTextToolStepover;
-        wxStaticText* StaticTextToolOvercut;
         wxTextCtrl* TextCtrlConnTolerance;
         wxTextCtrl* TextCtrlDepth;
         wxTextCtrl* TextCtrlMatTopHeight;
@@ -161,11 +161,11 @@ class BendiCAMFrame: public wxFrame
         wxTextCtrl* TextCtrlToolDiameter;
         wxTextCtrl* TextCtrlToolFeedXY;
         wxTextCtrl* TextCtrlToolFeedZ;
+        wxTextCtrl* TextCtrlToolOvercut;
         wxTextCtrl* TextCtrlToolRPM;
         wxTextCtrl* TextCtrlToolRampAngle;
         wxTextCtrl* TextCtrlToolStepdown;
         wxTextCtrl* TextCtrlToolStepover;
-        wxTextCtrl* TextCtrlToolOvercut;
         wxTimer Timer;
         wxTreeCtrl* TreeCtrlParts;
         //*)

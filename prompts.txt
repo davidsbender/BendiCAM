@@ -1,0 +1,47 @@
+Good. Now implement this: when a shape is selected in the Parts list:
+- Plot the shape itself in the drawing window with a dashed dark amber line.
+  We refer to this as "ShapeOutline".
+- Plot the shape expanded (outward) by the tool radius with a dashed dark blue line.
+  We refer to this as "ShapeToolPath".
+- Plot the shape expanded (outward) by the tool diameter with a dashed dark amber line.
+  We refer to this as "ShapeCutZone".
+- Plot the shape below the selected shape in the drawing window with a dashed dark amber line.
+  We refer to this as "MaterialOutline".
+  No plot if there is no shape below.
+- Plot the shape below the selected shape offset inward by (1 - overcutPercent / 100) * toolDiameter (for example, at 30% overcut, an inward offset of 0.70 * toolDiameter), with a dashed dark amber line.
+  We refer to this as "MaterialCutZoneInner".
+  No plot if there is no shape below.
+- Plot "MaterialCutZoneInner" expanded (outward) by the tool radius with a dashed dark blue line.
+  We refer to this as "MaterialToolPath".
+  No plot if there is no shape below.
+- Plot "MaterialCutZoneInner" expanded (outward) by the tool diameter with a dashed dark amber line.
+  We refer to this as "MaterialCutZoneOuter".
+  No plot if there is no shape below.
+- Implement a way of making those 7 newly created paths available to further processing (not yet implemented).
+  So, a data structure with 7 members:
+  - "ShapeOutline"
+  - "ShapeToolPath"
+  - "ShapeCutZone"
+  - "MaterialOutline" (null or empty if no lower shape exists)
+  - "MaterialCutZoneInner" (null or empty if no lower shape exists)
+  - "MaterialToolPath" (null or empty if no lower shape exists)
+  - "MaterialCutZoneOuter" (null or empty if no lower shape exists)
+- Implement a new UI element "Overcut", similar and close to "Stepover", with a value in percent, default 30 %.
+
+Challenge my understanding. Is it correct? Do not edit anything, just challenge me.
+
+In "SelectedShapeProcessingPaths", "MaterialToolPath" is currently "MaterialCutZoneInner" expanded by tool radius.
+Change this.
+"MaterialToolPath" shall now be "MaterialOutline", reduced or expanded.
+Expanded (outward) by (overcutPercent / 100 - 0.5) * toolDiameter.
+If (overcutPercent / 100 - 0.5) is positive (overcutPercent > 50 %), this results in positive expansion = outward.
+If (overcutPercent / 100 - 0.5) is negative (overcutPercent < 50 %), this results in negative expansion = reduction = inward.
+If (overcutPercent / 100 - 0.5) is zero (overcutPercent = 50 %), this results in neither expansion nor reduction.
+If inward offsetting causes self-intersection, pinching, or collapse on narrow geometry, retain the resulting intersecting or collapsing path rather than discarding it, prioritizing full coverage over exact shape preservation since extending outside the region is acceptable.
+
+In "SelectedShapeProcessingPaths", "MaterialCutZoneOuter" is currently "MaterialCutZoneInner" expanded by tool diameter.
+Change this.
+"MaterialCutZoneOuter" shall now be "MaterialToolPath", expanded (outward) by tool radius.
+In "SelectedShapeProcessingPaths", "MaterialCutZoneInner" is currently the below shape offset inward by (1 - overcutPercent / 100) * toolDiameter.
+Change this.
+"MaterialCutZoneInner" shall now be "MaterialToolPath", reduced (inward) by tool radius.
