@@ -43,6 +43,7 @@ public:
 #include <hidsdi.h>
 #include <hidpi.h>
 #include "DxfParser.h"
+#include "AnalyticalToolpath.h"
 #include "JoystickCalibration.h"
 #include "SteeringWheelCtrl.h"
 #include "PositionBarCtrl.h"
@@ -214,6 +215,7 @@ class BendiCAMFrame: public wxFrame
         void getMinMaxDepth(double& minDepth, double& maxDepth) const;
         wxColour getDepthColor(double depth, double minDepth, double maxDepth) const;
         std::vector<std::vector<DxfPoint>> getShapeClosedPaths(const CamShape& shape) const;
+        std::vector<AnalyticalPath> getShapeAnalyticalPaths(const CamShape& shape) const;
 
         std::string m_currentDxfPath;
         std::string m_currentProjectPath;

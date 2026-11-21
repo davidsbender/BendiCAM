@@ -40,9 +40,9 @@ OBJDIR_RELEASE = obj\\Release
 DEP_RELEASE = 
 OUT_RELEASE = bin\\Release\\BendiCAM.exe
 
-OBJ_DEBUG = $(OBJDIR_DEBUG)\\BendiCAMApp.o $(OBJDIR_DEBUG)\\BendiCAMMain.o $(OBJDIR_DEBUG)\\resource.o $(OBJDIR_DEBUG)\\src\\JoystickCalibration.o $(OBJDIR_DEBUG)\\src\\DxfParser.o
+OBJ_DEBUG = $(OBJDIR_DEBUG)\\BendiCAMApp.o $(OBJDIR_DEBUG)\\BendiCAMMain.o $(OBJDIR_DEBUG)\\resource.o $(OBJDIR_DEBUG)\\src\\JoystickCalibration.o $(OBJDIR_DEBUG)\\src\\DxfParser.o $(OBJDIR_DEBUG)\\src\\AnalyticalToolpath.o
 
-OBJ_RELEASE = $(OBJDIR_RELEASE)\\BendiCAMApp.o $(OBJDIR_RELEASE)\\BendiCAMMain.o $(OBJDIR_RELEASE)\\resource.o $(OBJDIR_RELEASE)\\src\\JoystickCalibration.o $(OBJDIR_RELEASE)\\src\\DxfParser.o
+OBJ_RELEASE = $(OBJDIR_RELEASE)\\BendiCAMApp.o $(OBJDIR_RELEASE)\\BendiCAMMain.o $(OBJDIR_RELEASE)\\resource.o $(OBJDIR_RELEASE)\\src\\JoystickCalibration.o $(OBJDIR_RELEASE)\\src\\DxfParser.o $(OBJDIR_RELEASE)\\src\\AnalyticalToolpath.o
 
 all: debug release
 
@@ -74,6 +74,9 @@ $(OBJDIR_DEBUG)\\src\\JoystickCalibration.o: src\\JoystickCalibration.cpp
 
 $(OBJDIR_DEBUG)\\src\\DxfParser.o: src\\DxfParser.cpp
 	$(CXX) $(CFLAGS_DEBUG) $(INC_DEBUG) -c src\\DxfParser.cpp -o $(OBJDIR_DEBUG)\\src\\DxfParser.o
+
+$(OBJDIR_DEBUG)\\src\\AnalyticalToolpath.o: src\\AnalyticalToolpath.cpp
+	$(CXX) $(CFLAGS_DEBUG) $(INC_DEBUG) -c src\\AnalyticalToolpath.cpp -o $(OBJDIR_DEBUG)\\src\\AnalyticalToolpath.o
 
 clean_debug: 
 	cmd /c del /f $(OBJ_DEBUG) $(OUT_DEBUG)
@@ -107,6 +110,9 @@ $(OBJDIR_RELEASE)\\src\\JoystickCalibration.o: src\\JoystickCalibration.cpp
 
 $(OBJDIR_RELEASE)\\src\\DxfParser.o: src\\DxfParser.cpp
 	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c src\\DxfParser.cpp -o $(OBJDIR_RELEASE)\\src\\DxfParser.o
+
+$(OBJDIR_RELEASE)\\src\\AnalyticalToolpath.o: src\\AnalyticalToolpath.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c src\\AnalyticalToolpath.cpp -o $(OBJDIR_RELEASE)\\src\\AnalyticalToolpath.o
 
 clean_release: 
 	cmd /c del /f $(OBJ_RELEASE) $(OUT_RELEASE)

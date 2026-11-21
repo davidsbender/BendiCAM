@@ -1387,134 +1387,22 @@ void BendiCAMFrame::OnPanelLeftDown(wxMouseEvent& event)
     PanelDrawing->Refresh();
 }
 
+std::vector<AnalyticalPath> BendiCAMFrame::getShapeAnalyticalPaths(const CamShape& shape) const
+{
+    std::vector<size_t> indices(shape.entityIndices.begin(), shape.entityIndices.end());
+    return ::getShapeAnalyticalPaths(m_dxfModel, indices);
+}
+
 std::vector<std::vector<DxfPoint>> BendiCAMFrame::getShapeClosedPaths(const CamShape& shape) const
 {
-    struct ShapePathInternal {
-        std::vector<DxfPoint> pts;
-        bool isClosed = false;
-    };
-
-    std::vector<ShapePathInternal> rawPaths;
-
-    for (size_t idx : shape.entityIndices) {
-        if (idx >= m_dxfModel.entities.size()) continue;
-        const auto& entity = m_dxfModel.entities[idx];
-        const DxfLayer* layer = m_dxfModel.findLayer(entity.layerName);
-        if (layer && !layer->visible) continue;
-
-        std::vector<DxfPoint> geomPoints;
-        if (entity.type == DxfEntityType::LINE && entity.points.size() >= 2) {
-            geomPoints = { entity.points[0], entity.points[1] };
-        } else if ((entity.type == DxfEntityType::POLYLINE || entity.type == DxfEntityType::SPLINE) && entity.points.size() >= 2) {
-            geomPoints = entity.points;
-        } else if (entity.type == DxfEntityType::CIRCLE) {
-            int steps = 32;
-            for (int i = 0; i < steps; ++i) {
-                double t = 2.0 * M_PI * i / steps;
-                geomPoints.push_back(DxfPoint(entity.center.x + entity.radius * std::cos(t),
-                                              entity.center.y + entity.radius * std::sin(t)));
-            }
-        } else if (entity.type == DxfEntityType::ARC) {
-            double startRad = entity.startAngle * M_PI / 180.0;
-            double endRad = entity.endAngle * M_PI / 180.0;
-            if (endRad <= startRad) endRad += 2.0 * M_PI;
-            int steps = std::max(8, (int)(std::abs(endRad - startRad) / (M_PI / 36.0)));
-            for (int i = 0; i <= steps; ++i) {
-                double t = startRad + (endRad - startRad) * i / steps;
-                geomPoints.push_back(DxfPoint(entity.center.x + entity.radius * std::cos(t),
-                                              entity.center.y + entity.radius * std::sin(t)));
-            }
-        } else if (entity.type == DxfEntityType::ELLIPSE) {
-            int steps = 36;
-            double startP = entity.startParam;
-            double endP = entity.endParam;
-            if (endP <= startP) endP += 2.0 * M_PI;
-            for (int i = 0; i <= steps; ++i) {
-                double t = startP + (endP - startP) * i / steps;
-                double ex = entity.center.x + entity.majorAxis.x * std::cos(t) - entity.majorAxis.y * entity.ratio * std::sin(t);
-                double ey = entity.center.y + entity.majorAxis.y * std::cos(t) + entity.majorAxis.x * entity.ratio * std::sin(t);
-                geomPoints.push_back(DxfPoint(ex, ey));
-            }
-        }
-
-        if (geomPoints.size() < 2) continue;
-
-        bool closed = entity.isClosed || entity.type == DxfEntityType::CIRCLE || entity.type == DxfEntityType::ELLIPSE;
-        double distSq = (geomPoints.front().x - geomPoints.back().x)*(geomPoints.front().x - geomPoints.back().x) +
-                        (geomPoints.front().y - geomPoints.back().y)*(geomPoints.front().y - geomPoints.back().y);
-        if (distSq < 1e-6) {
-            closed = true;
-        }
-
-        if (closed && geomPoints.size() > 2 && distSq < 1e-6) {
-            geomPoints.pop_back();
-        }
-
-        rawPaths.push_back({ geomPoints, closed });
-    }
-
-    std::vector<ShapePathInternal> openPaths;
+    auto analyticalPaths = getShapeAnalyticalPaths(shape);
     std::vector<std::vector<DxfPoint>> closedResult;
-
-    for (auto& path : rawPaths) {
-        if (path.isClosed) {
-            closedResult.push_back(path.pts);
-        } else {
-            openPaths.push_back(path);
+    for (const auto& path : analyticalPaths) {
+        auto pts = sampleAnalyticalPath(path, 0.5);
+        if (!pts.empty()) {
+            closedResult.push_back(pts);
         }
     }
-
-    while (!openPaths.empty()) {
-        ShapePathInternal current = openPaths.back();
-        openPaths.pop_back();
-
-        bool joined = true;
-        while (joined && !current.isClosed) {
-            joined = false;
-            for (size_t i = 0; i < openPaths.size(); ++i) {
-                auto& candidate = openPaths[i];
-                double d1 = std::hypot(current.pts.back().x - candidate.pts.front().x, current.pts.back().y - candidate.pts.front().y);
-                double d2 = std::hypot(current.pts.back().x - candidate.pts.back().x, current.pts.back().y - candidate.pts.back().y);
-                double d3 = std::hypot(current.pts.front().x - candidate.pts.back().x, current.pts.front().y - candidate.pts.back().y);
-                double d4 = std::hypot(current.pts.front().x - candidate.pts.front().x, current.pts.front().y - candidate.pts.front().y);
-
-                double tol = 1e-3;
-                if (d1 < tol) {
-                    current.pts.insert(current.pts.end(), candidate.pts.begin() + 1, candidate.pts.end());
-                    openPaths.erase(openPaths.begin() + i);
-                    joined = true;
-                    break;
-                } else if (d2 < tol) {
-                    std::vector<DxfPoint> rev(candidate.pts.rbegin(), candidate.pts.rend());
-                    current.pts.insert(current.pts.end(), rev.begin() + 1, rev.end());
-                    openPaths.erase(openPaths.begin() + i);
-                    joined = true;
-                    break;
-                } else if (d3 < tol) {
-                    current.pts.insert(current.pts.begin(), candidate.pts.begin(), candidate.pts.end() - 1);
-                    openPaths.erase(openPaths.begin() + i);
-                    joined = true;
-                    break;
-                } else if (d4 < tol) {
-                    std::vector<DxfPoint> rev(candidate.pts.rbegin(), candidate.pts.rend());
-                    current.pts.insert(current.pts.begin(), rev.begin(), rev.end() - 1);
-                    openPaths.erase(openPaths.begin() + i);
-                    joined = true;
-                    break;
-                }
-            }
-
-            double closeDist = std::hypot(current.pts.front().x - current.pts.back().x, current.pts.front().y - current.pts.back().y);
-            if (current.pts.size() >= 3 && closeDist < 1e-3) {
-                current.isClosed = true;
-                current.pts.pop_back();
-                break;
-            }
-        }
-
-        closedResult.push_back(current.pts);
-    }
-
     return closedResult;
 }
 
@@ -2507,261 +2395,6 @@ void BendiCAMFrame::OnExportGCode(wxCommandEvent& event)
     GenerateGCode(saveFileDialog.GetPath());
 }
 
-static double getPolygonArea(const std::vector<DxfPoint>& pts)
-{
-    double area = 0.0;
-    size_t n = pts.size();
-    for (size_t i = 0; i < n; ++i) {
-        size_t j = (i + 1) % n;
-        area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
-    }
-    return area * 0.5;
-}
-
-static std::vector<DxfPoint> offsetPolygon(const std::vector<DxfPoint>& inPts, double dist)
-{
-    std::vector<DxfPoint> pts = inPts;
-    if (pts.size() >= 3 && std::hypot(pts.front().x - pts.back().x, pts.front().y - pts.back().y) < 1e-6) {
-        pts.pop_back();
-    }
-    size_t n = pts.size();
-    if (n < 3) return inPts;
-
-    double area = getPolygonArea(pts);
-    bool isCCW = (area > 0.0);
-
-    std::vector<DxfPoint> normals(n);
-    for (size_t i = 0; i < n; ++i) {
-        size_t nextIdx = (i + 1) % n;
-        double dx = pts[nextIdx].x - pts[i].x;
-        double dy = pts[nextIdx].y - pts[i].y;
-        double len = std::hypot(dx, dy);
-        if (len < 1e-9) {
-            normals[i] = DxfPoint(0, 0);
-        } else if (isCCW) {
-            normals[i] = DxfPoint(dy / len, -dx / len);
-        } else {
-            normals[i] = DxfPoint(-dy / len, dx / len);
-        }
-    }
-
-    std::vector<DxfPoint> result(n);
-    for (size_t i = 0; i < n; ++i) {
-        size_t prevIdx = (i + n - 1) % n;
-        const auto& nIn = normals[prevIdx];
-        const auto& nOut = normals[i];
-
-        double dot = nIn.x * nOut.x + nIn.y * nOut.y;
-        double denom = 1.0 + dot;
-
-        DxfPoint miter;
-        if (denom < 1e-4) {
-            miter = nOut;
-        } else {
-            miter = DxfPoint((nIn.x + nOut.x) / denom, (nIn.y + nOut.y) / denom);
-        }
-
-        double miterLen = std::hypot(miter.x, miter.y);
-        if (miterLen > 2.0) {
-            miter.x = (miter.x / miterLen) * 2.0;
-            miter.y = (miter.y / miterLen) * 2.0;
-        }
-
-        result[i] = DxfPoint(pts[i].x + dist * miter.x, pts[i].y + dist * miter.y);
-    }
-
-    return result;
-}
-
-static std::vector<DxfPoint> samplePolygon(const std::vector<DxfPoint>& inPts, int targetCount)
-{
-    std::vector<DxfPoint> pts = inPts;
-    if (pts.size() >= 3 && std::hypot(pts.front().x - pts.back().x, pts.front().y - pts.back().y) < 1e-6) {
-        pts.pop_back();
-    }
-    size_t n = pts.size();
-    if (n < 3 || targetCount < 3) return inPts;
-
-    std::vector<double> segLens(n);
-    double totalLen = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-        size_t nextIdx = (i + 1) % n;
-        segLens[i] = std::hypot(pts[nextIdx].x - pts[i].x, pts[nextIdx].y - pts[i].y);
-        totalLen += segLens[i];
-    }
-
-    if (totalLen < 1e-9) return inPts;
-
-    std::vector<DxfPoint> sampled;
-    sampled.reserve(targetCount);
-
-    double stepLen = totalLen / targetCount;
-    size_t segIdx = 0;
-    double distOnSeg = 0.0;
-
-    for (int k = 0; k < targetCount; ++k) {
-        double targetDist = k * stepLen;
-        while (segIdx < n && distOnSeg + segLens[segIdx] < targetDist - 1e-9) {
-            distOnSeg += segLens[segIdx];
-            segIdx++;
-        }
-        if (segIdx >= n) {
-            segIdx = n - 1;
-        }
-        double rem = targetDist - distOnSeg;
-        double t = (segLens[segIdx] > 1e-9) ? (rem / segLens[segIdx]) : 0.0;
-        if (t < 0.0) t = 0.0;
-        if (t > 1.0) t = 1.0;
-
-        size_t nextIdx = (segIdx + 1) % n;
-        double px = pts[segIdx].x + t * (pts[nextIdx].x - pts[segIdx].x);
-        double py = pts[segIdx].y + t * (pts[nextIdx].y - pts[segIdx].y);
-        sampled.push_back(DxfPoint(px, py));
-    }
-
-    return sampled;
-}
-
-static bool isFullCircle(const std::vector<DxfPoint>& pts, DxfPoint& outCenter, double& outRadius, bool& outCCW)
-{
-    size_t n = pts.size();
-    if (n < 3) return false;
-
-    DxfPoint p1 = pts[0];
-    DxfPoint p2 = pts[n / 3];
-    DxfPoint p3 = pts[(2 * n) / 3];
-
-    double A = p2.x - p1.x;
-    double B = p2.y - p1.y;
-    double C = p3.x - p1.x;
-    double D = p3.y - p1.y;
-    double E = A * (p1.x + p2.x) + B * (p1.y + p2.y);
-    double F = C * (p1.x + p3.x) + D * (p1.y + p3.y);
-    double det = 2.0 * (A * D - B * C);
-
-    double cx = 0.0, cy = 0.0;
-    if (std::abs(det) < 1e-9) {
-        for (const auto& p : pts) { cx += p.x; cy += p.y; }
-        cx /= n; cy /= n;
-    } else {
-        cx = (D * E - B * F) / det;
-        cy = (A * F - C * E) / det;
-    }
-
-    double r = std::hypot(p1.x - cx, p1.y - cy);
-    if (r < 1e-4 || r > 500.0) return false;
-
-    double tol = std::max(0.02, 0.005 * r);
-    for (size_t i = 0; i < n; ++i) {
-        double dist = std::hypot(pts[i].x - cx, pts[i].y - cy);
-        if (std::abs(dist - r) > tol) return false;
-    }
-
-    double totalAngle = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-        size_t nextIdx = (i + 1) % n;
-        double a1 = std::atan2(pts[i].y - cy, pts[i].x - cx);
-        double a2 = std::atan2(pts[nextIdx].y - cy, pts[nextIdx].x - cx);
-        double da = a2 - a1;
-        while (da > M_PI) da -= 2.0 * M_PI;
-        while (da < -M_PI) da += 2.0 * M_PI;
-        totalAngle += da;
-    }
-
-    if (std::abs(std::abs(totalAngle) - 2.0 * M_PI) > 0.2) return false;
-
-    outCenter = DxfPoint(cx, cy);
-    outRadius = r;
-    outCCW = (totalAngle > 0.0);
-    return true;
-}
-
-static void emitLoopGCode(std::ofstream& out, const std::vector<DxfPoint>& loop,
-                         double prevZ, double curZ, double feedZ, double feedXY, double retractZ,
-                         double rampAngleDeg, bool isRamping, DxfPoint& currentToolPos, bool& isRetracted)
-{
-    if (loop.size() < 2) return;
-    char buf[256];
-    int numPts = (int)loop.size();
-    double startX = loop[0].x;
-    double startY = loop[0].y;
-
-    if (isRetracted) {
-        snprintf(buf, sizeof(buf), "G0 Z%.3f\n", retractZ); out << buf;
-        snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f\n", startX, startY); out << buf;
-        isRetracted = false;
-        double initialZ = isRamping ? prevZ : curZ;
-        snprintf(buf, sizeof(buf), "G1 Z%.3f F%.3f\n", initialZ, feedZ); out << buf;
-        currentToolPos = DxfPoint(startX, startY);
-    } else {
-        double distToStart = std::hypot(startX - currentToolPos.x, startY - currentToolPos.y);
-        if (distToStart > 1e-4) {
-            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f F%.3f\n", startX, startY, feedXY); out << buf;
-            currentToolPos = DxfPoint(startX, startY);
-        }
-    }
-
-    DxfPoint center;
-    double radius = 0.0;
-    bool isCCW = true;
-
-    if (numPts >= 3 && isFullCircle(loop, center, radius, isCCW)) {
-        double I = center.x - startX;
-        double J = center.y - startY;
-        const char* gCmd = isCCW ? "G3" : "G2";
-
-        if (isRamping && std::abs(prevZ - curZ) > 1e-4) {
-            snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f Z%.3f I%.3f J%.3f F%.3f\n", gCmd, startX, startY, curZ, I, J, feedZ);
-            out << buf;
-            snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-            snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f I%.3f J%.3f\n", gCmd, startX, startY, I, J);
-            out << buf;
-        } else {
-            snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-            snprintf(buf, sizeof(buf), "%s X%.3f Y%.3f I%.3f J%.3f\n", gCmd, startX, startY, I, J);
-            out << buf;
-        }
-        currentToolPos = DxfPoint(startX, startY);
-        return;
-    }
-
-    double totLen = 0.0;
-    std::vector<double> segLens(numPts);
-    for (int i = 0; i < numPts; ++i) {
-        int nxt = (i + 1) % numPts;
-        segLens[i] = std::hypot(loop[nxt].x - loop[i].x, loop[nxt].y - loop[i].y);
-        totLen += segLens[i];
-    }
-
-    if (isRamping && std::abs(prevZ - curZ) > 1e-4) {
-        double cumLen = 0.0;
-        for (int i = 0; i < numPts; ++i) {
-            int nxt = (i + 1) % numPts;
-            cumLen += segLens[i];
-            double t = (totLen > 1e-9) ? (cumLen / totLen) : ((double)(i + 1) / numPts);
-            double pz = prevZ + (curZ - prevZ) * t;
-            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n", loop[nxt].x, loop[nxt].y, pz, feedZ);
-            out << buf;
-        }
-
-        snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-        for (int i = 0; i < numPts; ++i) {
-            int nxt = (i + 1) % numPts;
-            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", loop[nxt].x, loop[nxt].y);
-            out << buf;
-        }
-    } else {
-        snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
-        for (int i = 0; i < numPts; ++i) {
-            int nxt = (i + 1) % numPts;
-            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f\n", loop[nxt].x, loop[nxt].y);
-            out << buf;
-        }
-    }
-
-    currentToolPos = DxfPoint(loop.back().x, loop.back().y);
-}
-
 void BendiCAMFrame::GenerateGCode(const wxString& filePath)
 {
     std::ofstream out(filePath.ToStdString());
@@ -2854,50 +2487,24 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                 passZLevels.push_back(targetZ);
             }
 
-            auto stepPaths = getShapeClosedPaths(*stepShape);
-            if (!stepPaths.empty() && stepPaths[0].size() >= 3) {
-                std::vector<DxfPoint> outerPath = stepPaths[0];
-
-                std::vector<DxfPoint> innerPath;
-                bool hasIsland = false;
-                if (islandShape) {
-                    auto islandPaths = getShapeClosedPaths(*islandShape);
-                    if (!islandPaths.empty() && islandPaths[0].size() >= 3) {
-                        innerPath = islandPaths[0];
-                        hasIsland = true;
-                    }
-                }
+            auto stepAnalyticalPaths = getShapeAnalyticalPaths(*stepShape);
+            if (!stepAnalyticalPaths.empty()) {
+                AnalyticalPath outerBoundary = stepAnalyticalPaths[0];
 
                 double stepoverDist = diameter * (stepover / 100.0);
                 if (stepoverDist <= 0.001) stepoverDist = diameter * 0.7;
 
-                std::vector<std::vector<DxfPoint>> ringLoops;
-                double origArea = getPolygonArea(outerPath);
+                std::vector<AnalyticalPath> ringLoops = generatePocketRings(outerBoundary, toolRad, stepoverDist);
 
-                double currentOffset = -toolRad;
-                while (true) {
-                    std::vector<DxfPoint> ring = offsetPolygon(outerPath, currentOffset);
-                    double ringArea = getPolygonArea(ring);
-
-                    if (ring.size() < 3 || std::abs(ringArea) < 1e-3 || (origArea * ringArea <= 0)) {
-                        break;
-                    }
-
-                    ringLoops.push_back(ring);
-                    currentOffset -= stepoverDist;
-
-                    if (ringLoops.size() > 500) break;
-                }
-
-                if (ringLoops.empty()) {
-                    std::vector<DxfPoint> ring0 = offsetPolygon(outerPath, -toolRad);
-                    if (!ring0.empty()) ringLoops.push_back(ring0);
-                }
-
-                if (hasIsland) {
-                    std::vector<DxfPoint> islandRing = offsetPolygon(innerPath, +toolRad);
-                    if (!islandRing.empty() && getPolygonArea(islandRing) > 1e-3) {
-                        ringLoops.push_back(islandRing);
+                if (islandShape) {
+                    auto islandAnalyticalPaths = getShapeAnalyticalPaths(*islandShape);
+                    if (!islandAnalyticalPaths.empty()) {
+                        std::vector<AnalyticalPath> islandRings = offsetAnalyticalPath(islandAnalyticalPaths[0], -toolRad);
+                        for (const auto& iring : islandRings) {
+                            if (getAnalyticalPathArea(iring) > 1e-3) {
+                                ringLoops.push_back(iring);
+                            }
+                        }
                     }
                 }
 
@@ -2912,7 +2519,7 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                     for (size_t ringIdx = 0; ringIdx < ringLoops.size(); ++ringIdx) {
                         const auto& loop = ringLoops[ringIdx];
                         bool isRamping = (ringIdx == 0);
-                        emitLoopGCode(out, loop, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, isRamping, currentToolPos, isRetracted);
+                        emitAnalyticalLoopGCode(out, loop, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, isRamping, currentToolPos, isRetracted);
                     }
                 }
             }
@@ -2938,11 +2545,9 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                 profilePassZLevels.push_back(targetProfileZ);
             }
 
-            auto outerPaths = getShapeClosedPaths(*outerShape);
-            for (const auto& path : outerPaths) {
-                if (path.size() < 3) continue;
-
-                std::vector<DxfPoint> contourPath = offsetPolygon(path, +toolRad);
+            auto outerAnalyticalPaths = getShapeAnalyticalPaths(*outerShape);
+            for (const auto& path : outerAnalyticalPaths) {
+                std::vector<AnalyticalPath> contourPaths = offsetAnalyticalPath(path, -toolRad);
 
                 int numProfPasses = (int)profilePassZLevels.size();
                 for (int pIdx = 0; pIdx < numProfPasses; ++pIdx) {
@@ -2952,7 +2557,9 @@ void BendiCAMFrame::GenerateGCode(const wxString& filePath)
                     snprintf(buf, sizeof(buf), "( Profile Pass %d/%d at Z = %.3f mm )\n", pIdx + 1, numProfPasses, curZ);
                     out << buf;
 
-                    emitLoopGCode(out, contourPath, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, true, currentToolPos, isRetracted);
+                    for (const auto& contourPath : contourPaths) {
+                        emitAnalyticalLoopGCode(out, contourPath, prevZ, curZ, feedZ, feedXY, retractZ, rampAngle, true, currentToolPos, isRetracted);
+                    }
                 }
             }
         }
