@@ -68,6 +68,11 @@ class BendiCAMFrame: public wxFrame
         virtual ~BendiCAMFrame();
         WXLRESULT MSWWindowProc(WXUINT message, WXWPARAM wParam, WXLPARAM lParam);
 
+        bool OpenDxf(const wxString& filename);
+        bool OpenProject(const wxString& projectPath);
+        void AutoCreatePartsFromDxf();
+        bool ExportGCodeToFile(const wxString& filePath);
+
     private:
 
         //(*Handlers(BendiCAMFrame)

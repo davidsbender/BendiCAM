@@ -810,16 +810,8 @@ void BendiCAMFrame::OnButtonAddToPartClick(wxCommandEvent& event)
     MarkDirty();
 }
 
-void BendiCAMFrame::OnOpen(wxCommandEvent& event)
+bool BendiCAMFrame::OpenDxf(const wxString& filename)
 {
-    wxFileDialog openFileDialog(this, _("Open CAD Drawing"), "", "",
-                                _("DXF Files (*.dxf)|*.dxf|All Files (*.*)|*.*"),
-                                wxFD_OPEN | wxFD_FILE_MUST_EXIST);
-
-    if (openFileDialog.ShowModal() == wxID_CANCEL)
-        return;
-
-    wxString filename = openFileDialog.GetPath();
     if (m_dxfModel.loadFromFile(filename.ToStdString())) {
         m_currentDxfPath = filename.ToStdString();
         m_currentProjectPath.clear();
@@ -850,25 +842,31 @@ void BendiCAMFrame::OnOpen(wxCommandEvent& event)
                                                    filename, m_dxfModel.entities.size(), m_dxfModel.layers.size()));
         PanelDrawing->Refresh();
         Panel3D->Refresh();
+        return true;
     } else {
         TextCtrlStatus->AppendText(wxString::Format(_("Failed to load CAD drawing: %s\n"), filename));
+        return false;
     }
 }
 
-void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
+void BendiCAMFrame::OnOpen(wxCommandEvent& event)
 {
-    wxFileDialog openFileDialog(this, _("Open BendiCAM Project"), "", "",
-                                _("BendiCAM Project (*.bcam)|*.bcam|JSON Files (*.json)|*.json|All Files (*.*)|*.*"),
+    wxFileDialog openFileDialog(this, _("Open CAD Drawing"), "", "",
+                                _("DXF Files (*.dxf)|*.dxf|All Files (*.*)|*.*"),
                                 wxFD_OPEN | wxFD_FILE_MUST_EXIST);
 
     if (openFileDialog.ShowModal() == wxID_CANCEL)
         return;
 
-    wxString projectPath = openFileDialog.GetPath();
+    OpenDxf(openFileDialog.GetPath());
+}
+
+bool BendiCAMFrame::OpenProject(const wxString& projectPath)
+{
     std::ifstream in(projectPath.ToStdString());
     if (!in.is_open()) {
         TextCtrlStatus->AppendText(wxString::Format(_("Failed to open project file: %s\n"), projectPath));
-        return;
+        return false;
     }
 
     std::string jsonText((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -880,7 +878,7 @@ void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
     std::string cadPath = root["cadFile"].strVal;
     if (cadPath.empty()) {
         TextCtrlStatus->AppendText(_("Invalid project file: missing cadFile reference.\n"));
-        return;
+        return false;
     }
 
     wxFileName fn(wxString::FromUTF8(cadPath.c_str()));
@@ -894,14 +892,14 @@ void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
                                 projFn.GetPath(), fn.GetFullName(),
                                 _("DXF Files (*.dxf)|*.dxf|All Files (*.*)|*.*"),
                                 wxFD_OPEN | wxFD_FILE_MUST_EXIST);
-            if (dxfDlg.ShowModal() == wxID_CANCEL) return;
+            if (dxfDlg.ShowModal() == wxID_CANCEL) return false;
             cadPath = dxfDlg.GetPath().ToStdString();
         }
     }
 
     if (!m_dxfModel.loadFromFile(cadPath)) {
         TextCtrlStatus->AppendText(wxString::Format(_("Failed to load CAD drawing: %s\n"), cadPath));
-        return;
+        return false;
     }
 
     m_currentDxfPath = cadPath;
@@ -1006,6 +1004,19 @@ void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
     TextCtrlStatus->AppendText(wxString::Format(_("Loaded BendiCAM Project: %s (%zu part(s))\n"), projectPath, m_parts.size()));
     PanelDrawing->Refresh();
     Panel3D->Refresh();
+    return true;
+}
+
+void BendiCAMFrame::OnOpenProject(wxCommandEvent& event)
+{
+    wxFileDialog openFileDialog(this, _("Open BendiCAM Project"), "", "",
+                                _("BendiCAM Project (*.bcam)|*.bcam|JSON Files (*.json)|*.json|All Files (*.*)|*.*"),
+                                wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+
+    if (openFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    OpenProject(openFileDialog.GetPath());
 }
 
 void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
@@ -2369,8 +2380,67 @@ void BendiCAMFrame::OnToolOrMaterialSettingChange(wxCommandEvent& event)
     MarkDirty();
 }
 
+void BendiCAMFrame::AutoCreatePartsFromDxf()
+{
+    if (!m_parts.empty() || m_dxfModel.entities.empty()) return;
+
+    double connTol = 0.1;
+    if (TextCtrlConnTolerance) TextCtrlConnTolerance->GetValue().ToDouble(&connTol);
+    bool closeCoinciding = CheckBoxClosePolylines ? CheckBoxClosePolylines->IsChecked() : true;
+
+    double defaultDepth = 5.0;
+    if (TextCtrlDepth) TextCtrlDepth->GetValue().ToDouble(&defaultDepth);
+
+    std::set<size_t> assignedIndices;
+    size_t numEntities = m_dxfModel.entities.size();
+
+    for (size_t i = 0; i < numEntities; ++i) {
+        if (assignedIndices.count(i)) continue;
+
+        std::set<size_t> connected = m_dxfModel.findConnectedEntities(i, connTol, closeCoinciding);
+        if (connected.empty()) continue;
+
+        CamPart part;
+        part.id = m_nextPartId++;
+
+        CamShape shape;
+        shape.shapeId = 1;
+        shape.depth = defaultDepth;
+        for (size_t idx : connected) {
+            shape.entityIndices.insert(idx);
+            assignedIndices.insert(idx);
+        }
+
+        part.shapes.push_back(shape);
+        part.name = wxString::Format(_("Part %d (%zu shape(s))"), part.id, part.shapes.size()).ToStdString();
+        m_parts.push_back(part);
+    }
+
+    RebuildPartsTree();
+    UpdatePartButtonStates();
+}
+
+bool BendiCAMFrame::ExportGCodeToFile(const wxString& filePath)
+{
+    if (m_parts.empty()) {
+        AutoCreatePartsFromDxf();
+    }
+
+    if (m_parts.empty()) {
+        TextCtrlStatus->AppendText(_("No parts defined or auto-detected. Unable to generate G-Code.\n"));
+        return false;
+    }
+
+    GenerateGCode(filePath);
+    return true;
+}
+
 void BendiCAMFrame::OnExportGCode(wxCommandEvent& event)
 {
+    if (m_parts.empty()) {
+        AutoCreatePartsFromDxf();
+    }
+
     if (m_parts.empty()) {
         wxMessageBox(_("No parts defined. Please create parts before exporting G-Code."), _("Export G-Code"), wxOK | wxICON_INFORMATION, this);
         return;
@@ -2392,7 +2462,7 @@ void BendiCAMFrame::OnExportGCode(wxCommandEvent& event)
     if (saveFileDialog.ShowModal() == wxID_CANCEL)
         return;
 
-    GenerateGCode(saveFileDialog.GetPath());
+    ExportGCodeToFile(saveFileDialog.GetPath());
 }
 
 void BendiCAMFrame::GenerateGCode(const wxString& filePath)
