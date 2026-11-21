@@ -223,13 +223,13 @@ const wxWindowID BendiCAMFrame::ID_STATICTEXT8 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL9 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_STATICTEXT9 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL10 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT12 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL13 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_STATICBOX6 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_STATICTEXT10 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL11 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_STATICTEXT11 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL12 = wxNewId();
-const wxWindowID BendiCAMFrame::ID_STATICTEXT12 = wxNewId();
-const wxWindowID BendiCAMFrame::ID_TEXTCTRL13 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_BUTTON3 = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuOpen = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuOpenProject = wxNewId();
@@ -289,7 +289,7 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     TextCtrlToolStepdown = new wxTextCtrl(this, ID_TEXTCTRL8, _T("1"), wxPoint(768,466), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL8"));
     StaticTextToolStepover = new wxStaticText(this, ID_STATICTEXT8, _("Stepover (%):"), wxPoint(815,468), wxDefaultSize, 0, _T("ID_STATICTEXT8"));
     TextCtrlToolStepover = new wxTextCtrl(this, ID_TEXTCTRL9, _T("70"), wxPoint(880,466), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL9"));
-    StaticTextToolRampAngle = new wxStaticText(this, ID_STATICTEXT9, _("Ramp Angle (�):"), wxPoint(692,494), wxDefaultSize, 0, _T("ID_STATICTEXT9"));
+    StaticTextToolRampAngle = new wxStaticText(this, ID_STATICTEXT9, _("Ramp Angle (°):"), wxPoint(692,494), wxDefaultSize, 0, _T("ID_STATICTEXT9"));
     TextCtrlToolRampAngle = new wxTextCtrl(this, ID_TEXTCTRL10, _T("20"), wxPoint(768,492), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL10"));
     StaticTextToolOvercut = new wxStaticText(this, ID_STATICTEXT12, _("Overcut (%):"), wxPoint(815,494), wxDefaultSize, 0, _T("ID_STATICTEXT12"));
     TextCtrlToolOvercut = new wxTextCtrl(this, ID_TEXTCTRL13, _T("30"), wxPoint(880,492), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL13"));
@@ -532,7 +532,7 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
     }
 
     int toolY = partsY + partsH + 6;
-    int toolH = 135;
+    int toolH = 155;
     if (StaticBoxTool) {
         StaticBoxTool->SetSize(4, toolY, rw - 8, toolH);
         StaticBoxTool->Lower();
