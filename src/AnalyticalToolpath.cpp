@@ -405,7 +405,7 @@ static bool isDegeneratePrimitive(const PathPrimitive& prim) {
     return false;
 }
 
-static AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path) {
+AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path) {
     if (path.empty()) return path;
     AnalyticalPath cleaned;
     cleaned.reserve(path.size());
@@ -552,7 +552,11 @@ bool findPrimitiveIntersection(const PathPrimitive& p1, const PathPrimitive& p2,
     } else { // ARC - ARC
         if (p1.radius <= 1e-6 || p2.radius <= 1e-6) return false;
         double d = pointDist(p1.center, p2.center);
-        if (d > p1.radius + p2.radius || d < std::abs(p1.radius - p2.radius) || d < 1e-9) {
+        if (d < 1e-6) {
+            outIntersect = DxfPoint((p1.endPt.x + p2.startPt.x) / 2.0, (p1.endPt.y + p2.startPt.y) / 2.0);
+            return true;
+        }
+        if (d > p1.radius + p2.radius || d < std::abs(p1.radius - p2.radius)) {
             return false;
         }
 
@@ -634,7 +638,16 @@ bool findPrimitiveIntersectionBounded(const PathPrimitive& p1, const PathPrimiti
     } else { // ARC - ARC
         if (p1.radius <= 1e-6 || p2.radius <= 1e-6) return false;
         double d = pointDist(p1.center, p2.center);
-        if (d > p1.radius + p2.radius || d < std::abs(p1.radius - p2.radius) || d < 1e-9) {
+        if (d < 1e-6) {
+            DxfPoint cand = DxfPoint((p1.endPt.x + p2.startPt.x) / 2.0, (p1.endPt.y + p2.startPt.y) / 2.0);
+            if (isPointOnArcSweep(cand, p1.center, p1.radius, p1.startPt, p1.endPt, p1.isCCW) &&
+                isPointOnArcSweep(cand, p2.center, p2.radius, p2.startPt, p2.endPt, p2.isCCW)) {
+                outIntersect = cand;
+                return true;
+            }
+            return false;
+        }
+        if (d > p1.radius + p2.radius || d < std::abs(p1.radius - p2.radius)) {
             return false;
         }
 
@@ -835,7 +848,7 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
 std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary, double distFromParent, bool isOutward) {
     std::vector<AnalyticalPath> resultLoops;
     AnalyticalPath cleanPath = cleanDegeneratePrimitives(path);
-    if (cleanPath.size() < 3) return resultLoops;
+    if (cleanPath.size() < 2) return resultLoops;
 
     size_t n = cleanPath.size();
     bool foundSplit = false;
@@ -1081,10 +1094,19 @@ HierarchyValidationResult validatePartHierarchy(
 
             if (ratio < 0.95 && shorterRatio < 0.95) {
                 result.hasViolation = true;
+                double maxExtDist = 0.0;
+                for (const auto& pt : samplePts) {
+                    if (!isPointInsideAnalyticalPath(pt, shorterBoundary)) {
+                        double d = pointToAnalyticalPathDistance(pt, shorterBoundary);
+                        if (d > maxExtDist) {
+                            maxExtDist = d;
+                        }
+                    }
+                }
                 char msg[512];
                 snprintf(msg, sizeof(msg),
-                    "Shape %d (h=%.1fmm) extends outside base Shape %d (h=%.1fmm)",
-                    taller.shapeId, taller.depth, shorter.shapeId, shorter.depth);
+                    "Shape %d (h=%.1fmm) extends outside base Shape %d (h=%.1fmm) by %.2fmm",
+                    taller.shapeId, taller.depth, shorter.shapeId, shorter.depth, maxExtDist);
                 result.warnings.push_back(msg);
             }
         }
@@ -1202,7 +1224,7 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                 if (isRecessedPocket) {
                     std::vector<AnalyticalPath> pocketRings = generatePocketRings(fPath, toolRad, stepoverDist);
                     for (const auto& ring : pocketRings) {
-                        if (getAnalyticalPathArea(ring) > 1e-3 && ring.size() >= 3) {
+                        if (getAnalyticalPathArea(ring) > 1e-3 && ring.size() >= 2) {
                             rawFloorLoops.push_back(ring);
                         }
                     }
@@ -1215,11 +1237,11 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                         pass++;
                         std::vector<AnalyticalPath> nextOuter;
                         for (const auto& loop : activeOuter) {
-                            if (getAnalyticalPathArea(loop) > 1e-3 && loop.size() >= 3) {
+                            if (getAnalyticalPathArea(loop) > 1e-3 && loop.size() >= 2) {
                                 rawFloorLoops.push_back(loop);
                                 auto innerRings = offsetAnalyticalPath(loop, +stepoverDist);
                                 for (const auto& ir : innerRings) {
-                                    if (getAnalyticalPathArea(ir) > 1e-3 && ir.size() >= 3) {
+                                    if (getAnalyticalPathArea(ir) > 1e-3 && ir.size() >= 2) {
                                         nextOuter.push_back(ir);
                                     }
                                 }
@@ -1235,7 +1257,7 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                             obsPass++;
                             std::vector<AnalyticalPath> nextObs;
                             for (const auto& loop : activeObs) {
-                                if (getAnalyticalPathArea(loop) > 1e-3 && loop.size() >= 3) {
+                                if (getAnalyticalPathArea(loop) > 1e-3 && loop.size() >= 2) {
                                     auto samplePts = sampleAnalyticalPath(loop, 0.5);
                                     if (!samplePts.empty()) {
                                         int insideCount = 0;
@@ -1248,7 +1270,7 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                                             rawFloorLoops.push_back(loop);
                                             auto outerRings = offsetAnalyticalPath(loop, -stepoverDist);
                                             for (const auto& oring : outerRings) {
-                                                if (getAnalyticalPathArea(oring) > 1e-3 && oring.size() >= 3) {
+                                                if (getAnalyticalPathArea(oring) > 1e-3 && oring.size() >= 2) {
                                                     nextObs.push_back(oring);
                                                 }
                                             }
@@ -1262,27 +1284,40 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                 }
 
                 for (const auto& loop : rawFloorLoops) {
-                    if (loop.size() < 3) continue;
+                    if (loop.size() < 2) continue;
 
-                    bool gougesObstacle = false;
-                    for (const auto& obsPath : floorObstacles) {
-                        auto loopSample = sampleAnalyticalPath(loop, 0.5);
-                        for (const auto& pt : loopSample) {
-                            if (isPointInsideAnalyticalPath(pt, obsPath)) {
-                                gougesObstacle = true;
+                    AnalyticalPath validPrims;
+                    for (const auto& prim : loop) {
+                        auto samplePts = sampleAnalyticalPath({prim}, 0.2);
+                        bool isValid = true;
+                        for (const auto& pt : samplePts) {
+                            if (!isPointInsideAnalyticalPath(pt, fPath)) {
+                                isValid = false;
                                 break;
                             }
-                            double distToObs = pointToAnalyticalPathDistance(pt, obsPath);
-                            if (distToObs < toolRad - 1e-2) {
-                                gougesObstacle = true;
-                                break;
+                            for (const auto& obsPath : floorObstacles) {
+                                if (isPointInsideAnalyticalPath(pt, obsPath) || pointToAnalyticalPathDistance(pt, obsPath) < toolRad - 1e-2) {
+                                    isValid = false;
+                                    break;
+                                }
                             }
+                            if (!isValid) break;
                         }
-                        if (gougesObstacle) break;
+                        if (isValid) {
+                            validPrims.push_back(prim);
+                        }
                     }
 
-                    if (!gougesObstacle) {
-                        clearingLoops.push_back(loop);
+                    if (validPrims.empty()) continue;
+
+                    AnalyticalPath sanitized = validPrims;
+                    if (validPrims.size() < loop.size()) {
+                        sanitized.push_back(PathPrimitive::CreateLine(validPrims.back().endPt, validPrims.front().startPt));
+                        sanitized = cleanDegeneratePrimitives(sanitized);
+                    }
+
+                    if (sanitized.size() >= 2 && getAnalyticalPathArea(sanitized) > 1e-3) {
+                        clearingLoops.push_back(sanitized);
                     }
                 }
             }

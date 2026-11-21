@@ -102,6 +102,7 @@ bool findPrimitiveIntersection(const PathPrimitive& p1, const PathPrimitive& p2,
 bool findPrimitiveIntersectionBounded(const PathPrimitive& p1, const PathPrimitive& p2, DxfPoint& outIntersect);
 
 std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& path, double dist);
+AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path);
 
 // Self-Intersection Pruning & Loop Splitting
 std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary = nullptr, double distFromParent = 0.0, bool isOutward = false);
