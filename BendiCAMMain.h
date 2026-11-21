@@ -125,6 +125,7 @@ class BendiCAMFrame: public wxFrame
         static const wxWindowID idMenuAbout;
         static const wxWindowID ID_STATICTEXT12;
         static const wxWindowID ID_TEXTCTRL13;
+        static const wxWindowID ID_TIMER;
         //*)
 
         //(*Declarations(BendiCAMFrame)
