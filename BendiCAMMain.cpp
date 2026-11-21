@@ -1858,7 +1858,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                                             // For CCW loop (orientation true), a concave corner for inward offset (positive offsetDist)
                                             // has angleTurn < 0 (right turn / inward corner).
                                             // More precisely, check if angleTurn * offsetDist < -1e-3 (or angleTurn < -1e-3 since offsetDist > 0).
-                                            if (angleTurn < -1e-3) {
+                                            if (angleTurn > 1e-3) {
                                                 // Calculate inward angle bisector vector pointing toward the corner vertex.
                                                 // Tangent t1 leaves vertex along prim1, t2 enters vertex from prim2.
                                                 // The bisector pointing into the corner vertex:
