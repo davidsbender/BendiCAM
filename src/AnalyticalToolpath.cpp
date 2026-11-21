@@ -376,8 +376,61 @@ bool checkCornerConvexity(const PathPrimitive& prim1, const PathPrimitive& prim2
     double dot = t1.x * t2.x + t1.y * t2.y;
     double angleTurn = std::atan2(crossZ, dot);
 
+    if (std::abs(angleTurn) < 1e-3) {
+        return false;
+    }
+
     // Roll-around arc needed if turn direction and offset direction have opposite signs
-    return (angleTurn * offsetDist < -1e-4);
+    return (angleTurn * offsetDist < -1e-3);
+}
+
+static bool isDegeneratePrimitive(const PathPrimitive& prim) {
+    double len = getPrimitiveLength(prim);
+    if (len < 0.01) return true;
+
+    if (prim.type == PrimitiveType::ARC) {
+        if (prim.radius <= 1e-4) return true;
+        double a1 = std::atan2(prim.startPt.y - prim.center.y, prim.startPt.x - prim.center.x);
+        double a2 = std::atan2(prim.endPt.y - prim.center.y, prim.endPt.x - prim.center.x);
+        double da = a2 - a1;
+        if (prim.isCCW) {
+            while (da < 0.0) da += 2.0 * M_PI;
+        } else {
+            while (da > 0.0) da -= 2.0 * M_PI;
+            da = std::abs(da);
+        }
+        double sweepDeg = da * 180.0 / M_PI;
+        if (sweepDeg < 0.1) return true;
+    }
+    return false;
+}
+
+static AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path) {
+    if (path.empty()) return path;
+    AnalyticalPath cleaned;
+    cleaned.reserve(path.size());
+
+    for (const auto& prim : path) {
+        if (isDegeneratePrimitive(prim)) {
+            if (!cleaned.empty()) {
+                cleaned.back().endPt = prim.endPt;
+            }
+        } else {
+            cleaned.push_back(prim);
+            if (cleaned.size() > 1) {
+                cleaned.back().startPt = cleaned[cleaned.size() - 2].endPt;
+            }
+        }
+    }
+
+    if (cleaned.size() >= 2) {
+        double d = pointDist(cleaned.back().endPt, cleaned.front().startPt);
+        if (d < 1e-1) {
+            cleaned.front().startPt = cleaned.back().endPt;
+        }
+    }
+
+    return cleaned;
 }
 
 PathPrimitive createRollAroundArc(const PathPrimitive& prim1, const PathPrimitive& prim2, const PathPrimitive& offsetPrim1, double dist) {
@@ -426,6 +479,8 @@ static bool isPointOnArcSweep(const DxfPoint& pt, const DxfPoint& center, double
 }
 
 bool findPrimitiveIntersection(const PathPrimitive& p1, const PathPrimitive& p2, DxfPoint& outIntersect) {
+    DxfPoint cornerPt((p1.endPt.x + p2.startPt.x) / 2.0, (p1.endPt.y + p2.startPt.y) / 2.0);
+
     if (p1.type == PrimitiveType::LINE && p2.type == PrimitiveType::LINE) {
         double dx1 = p1.endPt.x - p1.startPt.x;
         double dy1 = p1.endPt.y - p1.startPt.y;
@@ -462,12 +517,38 @@ bool findPrimitiveIntersection(const PathPrimitive& p1, const PathPrimitive& p2,
         DxfPoint ptA(p1.startPt.x + tA * ux, p1.startPt.y + tA * uy);
         DxfPoint ptB(p1.startPt.x + tB * ux, p1.startPt.y + tB * uy);
 
-        double dA = pointDist(ptA, p1.endPt);
-        double dB = pointDist(ptB, p1.endPt);
+        double dA = pointDist(ptA, cornerPt);
+        double dB = pointDist(ptB, cornerPt);
         outIntersect = (dA < dB) ? ptA : ptB;
         return true;
     } else if (p1.type == PrimitiveType::ARC && p2.type == PrimitiveType::LINE) {
-        return findPrimitiveIntersection(p2, p1, outIntersect);
+        if (p1.radius <= 1e-6) return false;
+        double dx = p2.endPt.x - p2.startPt.x;
+        double dy = p2.endPt.y - p2.startPt.y;
+        double len = std::hypot(dx, dy);
+        if (len < 1e-9) return false;
+        double ux = dx / len;
+        double uy = dy / len;
+
+        double delx = p2.startPt.x - p1.center.x;
+        double dely = p2.startPt.y - p1.center.y;
+
+        double B = 2.0 * (delx * ux + dely * uy);
+        double C = (delx * delx + dely * dely) - p1.radius * p1.radius;
+        double disc = B * B - 4.0 * C;
+        if (disc < 0.0) return false;
+
+        double sqD = std::sqrt(disc);
+        double tA = (-B - sqD) / 2.0;
+        double tB = (-B + sqD) / 2.0;
+
+        DxfPoint ptA(p2.startPt.x + tA * ux, p2.startPt.y + tA * uy);
+        DxfPoint ptB(p2.startPt.x + tB * ux, p2.startPt.y + tB * uy);
+
+        double dA = pointDist(ptA, cornerPt);
+        double dB = pointDist(ptB, cornerPt);
+        outIntersect = (dA < dB) ? ptA : ptB;
+        return true;
     } else { // ARC - ARC
         if (p1.radius <= 1e-6 || p2.radius <= 1e-6) return false;
         double d = pointDist(p1.center, p2.center);
@@ -488,8 +569,8 @@ bool findPrimitiveIntersection(const PathPrimitive& p1, const PathPrimitive& p2,
         DxfPoint cand1(p0x + h * nx, p0y + h * ny);
         DxfPoint cand2(p0x - h * nx, p0y - h * ny);
 
-        double d1 = pointDist(cand1, p1.endPt);
-        double d2 = pointDist(cand2, p1.endPt);
+        double d1 = pointDist(cand1, cornerPt);
+        double d2 = pointDist(cand2, cornerPt);
         outIntersect = (d1 < d2) ? cand1 : cand2;
         return true;
     }
@@ -591,6 +672,73 @@ bool findPrimitiveIntersectionBounded(const PathPrimitive& p1, const PathPrimiti
     }
 }
 
+static bool isIntersectionWithinBounds(const PathPrimitive& p1, const PathPrimitive& p2, const DxfPoint& pt, double offsetDist) {
+    double absDist = std::abs(offsetDist);
+    double maxDistMargin = std::max(5.0 * absDist, 10.0);
+
+    if (pointDist(pt, p1.endPt) > maxDistMargin || pointDist(pt, p2.startPt) > maxDistMargin) {
+        return false;
+    }
+
+    double t1 = 0.0;
+    if (p1.type == PrimitiveType::LINE) {
+        double dx = p1.endPt.x - p1.startPt.x;
+        double dy = p1.endPt.y - p1.startPt.y;
+        double lenSq = dx * dx + dy * dy;
+        if (lenSq < 1e-12) return false;
+        t1 = ((pt.x - p1.startPt.x) * dx + (pt.y - p1.startPt.y) * dy) / lenSq;
+    } else {
+        double a1 = std::atan2(p1.startPt.y - p1.center.y, p1.startPt.x - p1.center.x);
+        double a2 = std::atan2(p1.endPt.y - p1.center.y, p1.endPt.x - p1.center.x);
+        double a = std::atan2(pt.y - p1.center.y, pt.x - p1.center.x);
+        double da = a - a1;
+        double sweep = a2 - a1;
+        if (p1.isCCW) {
+            while (da < 0.0) da += 2.0 * M_PI;
+            while (sweep <= 0.0) sweep += 2.0 * M_PI;
+            t1 = (sweep > 1e-9) ? da / sweep : 1.0;
+        } else {
+            while (da > 0.0) da -= 2.0 * M_PI;
+            while (sweep >= 0.0) sweep -= 2.0 * M_PI;
+            t1 = (std::abs(sweep) > 1e-9) ? da / sweep : 1.0;
+        }
+    }
+
+    double t2 = 0.0;
+    if (p2.type == PrimitiveType::LINE) {
+        double dx = p2.endPt.x - p2.startPt.x;
+        double dy = p2.endPt.y - p2.startPt.y;
+        double lenSq = dx * dx + dy * dy;
+        if (lenSq < 1e-12) return false;
+        t2 = ((pt.x - p2.startPt.x) * dx + (pt.y - p2.startPt.y) * dy) / lenSq;
+    } else {
+        double a1 = std::atan2(p2.startPt.y - p2.center.y, p2.startPt.x - p2.center.x);
+        double a2 = std::atan2(p2.endPt.y - p2.center.y, p2.endPt.x - p2.center.x);
+        double a = std::atan2(pt.y - p2.center.y, pt.x - p2.center.x);
+        double da = a - a1;
+        double sweep = a2 - a1;
+        if (p2.isCCW) {
+            while (da < 0.0) da += 2.0 * M_PI;
+            while (sweep <= 0.0) sweep += 2.0 * M_PI;
+            t2 = (sweep > 1e-9) ? da / sweep : 0.0;
+        } else {
+            while (da > 0.0) da -= 2.0 * M_PI;
+            while (sweep >= 0.0) sweep -= 2.0 * M_PI;
+            t2 = (std::abs(sweep) > 1e-9) ? da / sweep : 0.0;
+        }
+    }
+
+    if (t1 > 1.0 + 1e-3 && t2 < -1e-3) {
+        return false;
+    }
+
+    if (t1 < -0.5 || t1 > 2.0 || t2 < -1.0 || t2 > 1.5) {
+        return false;
+    }
+
+    return true;
+}
+
 std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, double dist) {
     std::vector<AnalyticalPath> result;
     if (inPath.size() < 2) return result;
@@ -616,7 +764,7 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
     std::vector<bool> isRollAround(m, false);
     std::vector<PathPrimitive> rollAroundArcs(m);
 
-    // Pass 1: Resolve all corner points (intersections or roll-around arcs)
+    // Pass 1: Resolve all corner points (intersections first, then roll-around arcs if genuinely convex)
     for (size_t i = 0; i < m; ++i) {
         size_t nextIdx = (i + 1) % m;
         size_t origI = origIndices[i];
@@ -625,28 +773,31 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
         PathPrimitive prim = path[origI];
         PathPrimitive nextPrim = path[origNextI];
 
-        bool rollAround = checkCornerConvexity(prim, nextPrim, dist);
+        DxfPoint intersectPt;
+        bool foundIntersect = false;
 
-        if (rollAround) {
-            isRollAround[i] = true;
-            rollAroundArcs[i] = createRollAroundArc(prim, nextPrim, validOffsetPrims[i], dist);
-        } else {
-            isRollAround[i] = false;
-            DxfPoint intersectPt;
-            bool foundIntersect = false;
-
-            // Forward search for multi-segment collapse
-            for (size_t fwd = 1; fwd < m - 1; ++fwd) {
-                size_t candIdx = (i + fwd) % m;
-                if (findPrimitiveIntersection(validOffsetPrims[i], validOffsetPrims[candIdx], intersectPt)) {
-                    validOffsetPrims[i].endPt = intersectPt;
-                    validOffsetPrims[candIdx].startPt = intersectPt;
+        for (size_t fwd = 1; fwd < m - 1; ++fwd) {
+            size_t candIdx = (i + fwd) % m;
+            DxfPoint inter;
+            if (findPrimitiveIntersection(validOffsetPrims[i], validOffsetPrims[candIdx], inter)) {
+                if (isIntersectionWithinBounds(validOffsetPrims[i], validOffsetPrims[candIdx], inter, dist)) {
+                    validOffsetPrims[i].endPt = inter;
+                    validOffsetPrims[candIdx].startPt = inter;
                     foundIntersect = true;
                     break;
                 }
             }
+        }
 
-            if (!foundIntersect) {
+        if (foundIntersect) {
+            isRollAround[i] = false;
+        } else {
+            bool rollAround = checkCornerConvexity(prim, nextPrim, dist);
+            if (rollAround) {
+                isRollAround[i] = true;
+                rollAroundArcs[i] = createRollAroundArc(prim, nextPrim, validOffsetPrims[i], dist);
+            } else {
+                isRollAround[i] = false;
                 if (findPrimitiveIntersection(validOffsetPrims[i], validOffsetPrims[nextIdx], intersectPt)) {
                     validOffsetPrims[i].endPt = intersectPt;
                     validOffsetPrims[nextIdx].startPt = intersectPt;
@@ -659,10 +810,12 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
     AnalyticalPath rawOffset;
     for (size_t i = 0; i < m; ++i) {
         rawOffset.push_back(validOffsetPrims[i]);
-        if (isRollAround[i]) {
+        if (isRollAround[i] && !isDegeneratePrimitive(rollAroundArcs[i])) {
             rawOffset.push_back(rollAroundArcs[i]);
         }
     }
+
+    rawOffset = cleanDegeneratePrimitives(rawOffset);
 
     // Connect endpoints across consecutive primitives cleanly
     if (rawOffset.size() >= 3) {
@@ -681,9 +834,10 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
 
 std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary, double distFromParent, bool isOutward) {
     std::vector<AnalyticalPath> resultLoops;
-    if (path.size() < 3) return resultLoops;
+    AnalyticalPath cleanPath = cleanDegeneratePrimitives(path);
+    if (cleanPath.size() < 3) return resultLoops;
 
-    size_t n = path.size();
+    size_t n = cleanPath.size();
     bool foundSplit = false;
     size_t splitI = 0, splitJ = 0;
     DxfPoint splitPt;
@@ -693,7 +847,7 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
             if (i == 0 && j == n - 1) continue;
 
             DxfPoint inter;
-            if (findPrimitiveIntersectionBounded(path[i], path[j], inter)) {
+            if (findPrimitiveIntersectionBounded(cleanPath[i], cleanPath[j], inter)) {
                 foundSplit = true;
                 splitI = i;
                 splitJ = j;
@@ -703,13 +857,13 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
     }
 
     if (!foundSplit) {
-        double area = getAnalyticalPathArea(path);
+        double area = getAnalyticalPathArea(cleanPath);
         // Valid interior loop must have strictly positive CCW area
         if (area > 1e-3) {
             // Verify all control points lie inside parent boundary (if provided and inward offset)
             bool validLocation = true;
             if (!isOutward && parentBoundary && !parentBoundary->empty()) {
-                auto samplePts = sampleAnalyticalPath(path, 0.5);
+                auto samplePts = sampleAnalyticalPath(cleanPath, 0.5);
                 int insideCount = 0;
                 for (const auto& pt : samplePts) {
                     if (isPointInsideAnalyticalPath(pt, *parentBoundary)) {
@@ -721,7 +875,7 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
                 }
             }
             if (validLocation) {
-                resultLoops.push_back(path);
+                resultLoops.push_back(cleanPath);
             }
         }
         return resultLoops;
@@ -731,30 +885,33 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
     AnalyticalPath loop1, loop2;
 
     for (size_t k = 0; k <= splitI; ++k) {
-        loop1.push_back(path[k]);
+        loop1.push_back(cleanPath[k]);
     }
     loop1.back().endPt = splitPt;
 
     for (size_t k = splitJ + 1; k < n; ++k) {
-        loop1.push_back(path[k]);
+        loop1.push_back(cleanPath[k]);
     }
     if (loop1.size() > splitI + 1) {
         loop1[splitI + 1].startPt = splitPt;
     }
 
     for (size_t k = splitI + 1; k <= splitJ; ++k) {
-        loop2.push_back(path[k]);
+        loop2.push_back(cleanPath[k]);
     }
     if (!loop2.empty()) {
         loop2.front().startPt = splitPt;
         loop2.back().endPt = splitPt;
     }
 
-    auto clean1 = pruneSelfIntersectionsAndSplit(loop1, parentBoundary, distFromParent, isOutward);
-    auto clean2 = pruneSelfIntersectionsAndSplit(loop2, parentBoundary, distFromParent, isOutward);
+    auto subClean1 = cleanDegeneratePrimitives(loop1);
+    auto subClean2 = cleanDegeneratePrimitives(loop2);
 
-    resultLoops.insert(resultLoops.end(), clean1.begin(), clean1.end());
-    resultLoops.insert(resultLoops.end(), clean2.begin(), clean2.end());
+    auto res1 = pruneSelfIntersectionsAndSplit(subClean1, parentBoundary, distFromParent, isOutward);
+    auto res2 = pruneSelfIntersectionsAndSplit(subClean2, parentBoundary, distFromParent, isOutward);
+
+    resultLoops.insert(resultLoops.end(), res1.begin(), res1.end());
+    resultLoops.insert(resultLoops.end(), res2.begin(), res2.end());
 
     return resultLoops;
 }
@@ -981,21 +1138,14 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
 
     double openOffset = toolRad - overrunDist;
 
-    std::vector<AnalyticalPath> obstaclePaths;
-    std::vector<AnalyticalPath> expandedObstacles;
-
+    std::vector<AnalyticalPath> allUpperObstaclePaths;
     for (const auto& shape : shapes) {
         if (shape.depth >= zUpper - 1e-4) {
             std::vector<size_t> indices(shape.entityIndices.begin(), shape.entityIndices.end());
             auto paths = getShapeAnalyticalPaths(model, indices);
             for (auto& p : paths) {
                 ensureLoopOrientation(p, true);
-                obstaclePaths.push_back(p);
-                auto exp = offsetAnalyticalPath(p, -toolRad);
-                for (auto& ep : exp) {
-                    ensureLoopOrientation(ep, true);
-                    expandedObstacles.push_back(ep);
-                }
+                allUpperObstaclePaths.push_back(p);
             }
         }
     }
@@ -1008,8 +1158,32 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
             for (auto& fPath : floorPaths) {
                 ensureLoopOrientation(fPath, true);
 
+                std::vector<AnalyticalPath> floorObstacles;
+                std::vector<AnalyticalPath> floorExpandedObstacles;
+
+                for (const auto& obsPath : allUpperObstaclePaths) {
+                    auto obsSample = sampleAnalyticalPath(obsPath, 0.5);
+                    if (obsSample.empty()) continue;
+
+                    int insideCount = 0;
+                    for (const auto& pt : obsSample) {
+                        if (isPointInsideAnalyticalPath(pt, fPath)) {
+                            insideCount++;
+                        }
+                    }
+
+                    if ((double)insideCount / obsSample.size() > 0.5) {
+                        floorObstacles.push_back(obsPath);
+                        auto exp = offsetAnalyticalPath(obsPath, -toolRad);
+                        for (auto& ep : exp) {
+                            ensureLoopOrientation(ep, true);
+                            floorExpandedObstacles.push_back(ep);
+                        }
+                    }
+                }
+
                 bool isRecessedPocket = false;
-                for (const auto& obsPath : obstaclePaths) {
+                for (const auto& obsPath : allUpperObstaclePaths) {
                     auto fSample = sampleAnalyticalPath(fPath, 0.5);
                     int insideObs = 0;
                     for (const auto& pt : fSample) {
@@ -1023,11 +1197,13 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                     }
                 }
 
+                std::vector<AnalyticalPath> rawFloorLoops;
+
                 if (isRecessedPocket) {
                     std::vector<AnalyticalPath> pocketRings = generatePocketRings(fPath, toolRad, stepoverDist);
                     for (const auto& ring : pocketRings) {
                         if (getAnalyticalPathArea(ring) > 1e-3 && ring.size() >= 3) {
-                            clearingLoops.push_back(ring);
+                            rawFloorLoops.push_back(ring);
                         }
                     }
                 } else {
@@ -1040,7 +1216,7 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                         std::vector<AnalyticalPath> nextOuter;
                         for (const auto& loop : activeOuter) {
                             if (getAnalyticalPathArea(loop) > 1e-3 && loop.size() >= 3) {
-                                clearingLoops.push_back(loop);
+                                rawFloorLoops.push_back(loop);
                                 auto innerRings = offsetAnalyticalPath(loop, +stepoverDist);
                                 for (const auto& ir : innerRings) {
                                     if (getAnalyticalPathArea(ir) > 1e-3 && ir.size() >= 3) {
@@ -1052,39 +1228,42 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                         activeOuter = nextOuter;
                     }
 
-                    for (const auto& expObs : expandedObstacles) {
+                    for (const auto& expObs : floorExpandedObstacles) {
                         if (getAnalyticalPathArea(expObs) > 1e-3 && expObs.size() >= 3) {
-                            clearingLoops.push_back(expObs);
+                            rawFloorLoops.push_back(expObs);
                         }
+                    }
+                }
+
+                for (const auto& loop : rawFloorLoops) {
+                    if (loop.size() < 3) continue;
+
+                    bool gougesObstacle = false;
+                    for (const auto& obsPath : floorObstacles) {
+                        auto loopSample = sampleAnalyticalPath(loop, 0.5);
+                        for (const auto& pt : loopSample) {
+                            if (isPointInsideAnalyticalPath(pt, obsPath)) {
+                                gougesObstacle = true;
+                                break;
+                            }
+                            double distToObs = pointToAnalyticalPathDistance(pt, obsPath);
+                            if (distToObs < toolRad - 1e-2) {
+                                gougesObstacle = true;
+                                break;
+                            }
+                        }
+                        if (gougesObstacle) break;
+                    }
+
+                    if (!gougesObstacle) {
+                        clearingLoops.push_back(loop);
                     }
                 }
             }
         }
     }
 
-    std::vector<AnalyticalPath> finalValidLoops;
-    for (const auto& loop : clearingLoops) {
-        if (loop.size() < 3) continue;
-
-        bool gougesObstacle = false;
-        for (const auto& obsPath : obstaclePaths) {
-            auto samplePts = sampleAnalyticalPath(loop, 0.5);
-            for (const auto& pt : samplePts) {
-                double distToObs = pointToAnalyticalPathDistance(pt, obsPath);
-                if (distToObs < toolRad - 1e-2) {
-                    gougesObstacle = true;
-                    break;
-                }
-            }
-            if (gougesObstacle) break;
-        }
-
-        if (!gougesObstacle) {
-            finalValidLoops.push_back(loop);
-        }
-    }
-
-    return finalValidLoops;
+    return clearingLoops;
 }
 
 std::vector<AnalyticalPath> generateOuterCutoutPaths(
