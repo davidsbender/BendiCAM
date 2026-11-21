@@ -106,3 +106,24 @@ To support this 3D part paradigm correctly, the CAM engine must execute the foll
 
 3. **Cutout Pass Generation**:
    * For the outermost boundary shape at $Z = h_{\text{base}}$, generate an outer profile contour path offset by $+R_{\text{tool}}$ running from $Z = h_{\text{base}}$ down to $Z = 0.0\,\text{mm}$.
+
+---
+
+## 5. Handling Containment Hierarchy Violations
+
+### Validation & Non-Blocking Warning Policy
+Before generating toolpaths, the CAM engine validates the containment hierarchy between shapes at adjacent $Z$-height levels:
+$$\text{Footprint}(S_{\text{tall}}) \subseteq \text{Footprint}(S_{\text{short}})$$
+
+If a taller shape $S_{\text{tall}}$ extends outside the boundary of its supporting base shape $S_{\text{short}}$:
+
+1. **Warning Diagnostic**:
+   * **GUI Mode**: Display a warning message in the status log / message dialog highlighting the violating shape:
+     `"Warning: Shape X (h=10.0mm) extends outside base Shape Y (h=5.0mm). G-code will be generated, but toolpaths may result in un-supported geometry."`
+   * **CLI Mode**: Output a warning message to `std::cerr` detailing the shape violation.
+   * **G-Code Header Comment**: Embed a warning comment near the top of the exported `.cnc` file:
+     `( WARNING: Containment hierarchy violation detected - Shape X (h=10.0mm) extends outside base Shape Y (h=5.0mm) )`
+
+2. **Non-Blocking G-Code Output**:
+   * The CAM engine **does not abort** G-code generation.
+   * Toolpaths are generated using best-effort geometric domain calculations so the `.cnc` file is produced regardless, allowing the user to inspect, simulate, or run the toolpath.
