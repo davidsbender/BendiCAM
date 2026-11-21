@@ -21,6 +21,7 @@ To maintain consistency with BendiCAM's analytical toolpath engine (`TOOLPATH_AR
 * **Planar Region ($\Omega \subset \mathbb{R}^2$)**: The closed 2D area domain enclosed by an analytical boundary loop $\partial \Omega$.
 * **Minkowski Disk ($\mathcal{B}_r$)**: A closed 2D circular disk of radius $r$ centered at the origin:
   $$\mathcal{B}_r = \{ \mathbf{p} \in \mathbb{R}^2 \mid \|\mathbf{p}\| \le r \}$$
+  *(For $\delta \ge 0$, erosion is $\Omega \ominus \mathcal{B}_\delta \equiv \Omega \oplus \mathcal{B}_{-\delta}$).*
 * **Cutter Centerline vs. Cutter Envelope**:
   * For a tool of diameter $D_{\text{tool}}$, the tool radius is $R_{\text{tool}} = D_{\text{tool}} / 2.0$.
   * If the tool centerline is positioned at 2D point $\mathbf{c} = (x, y)$, the **cutter envelope** (physical volume swept by the cutting edges) covers the 2D disk $\mathbf{c} \oplus \mathcal{B}_{R_{\text{tool}}}$.
@@ -53,14 +54,16 @@ BendiCAM supports two complementary 2.5D feature topologies:
 * **Nominal Containment**: The 2D region of the pocket floor must lie inside the surrounding wall:
   $$\Omega_{\text{floor}} \subset \text{Int}(\Omega_{\text{wall}})$$
 
-#### C. Generalized Multi-Feature Set Formulation
-For any axial height transition from upper level $Z_{\text{upper}}$ down to floor level $Z_{\text{floor}}$ ($Z_{\text{floor}} < Z_{\text{upper}}$):
-1. Define the **lower platform domain** $\Omega_{\text{below}}(Z_{\text{floor}})$ as the 2D union of all shapes with height $h \ge Z_{\text{floor}}$:
-   $$\Omega_{\text{below}}(Z_{\text{floor}}) = \bigcup \{ \Omega_i \mid h_i \ge Z_{\text{floor}} \}$$
-2. Define the **standing obstacle domain** $\Omega_{\text{above}}(Z_{\text{upper}})$ as the 2D union of all shapes with height $h \ge Z_{\text{upper}}$:
-   $$\Omega_{\text{above}}(Z_{\text{upper}}) = \bigcup \{ \Omega_j \mid h_j \ge Z_{\text{upper}} \}$$
-3. The nominal 2D clearing region $\Omega_{\text{clear}}$ for the height band $Z \in [Z_{\text{floor}}, Z_{\text{upper}}]$ is the 2D set difference:
-   $$\Omega_{\text{clear}} = \Omega_{\text{below}}(Z_{\text{lower}}) \setminus \Omega_{\text{above}}(Z_{\text{upper}})$$
+#### C. 2D Height Field Precedence & Generalized Set Formulation
+To resolve feature overlap without ambiguity, a 3D Part defines a scalar **2D height field** $H(x, y)$ over the stock domain $\Omega_{\text{stock}}$ via hierarchical feature precedence:
+1. Inner/nested child features override the height of enclosing parent features within their 2D footprint.
+   * For a recessed pocket $\Omega_{\text{floor}} \subset \Omega_{\text{wall}}$: $H(x, y) = h_{\text{floor}}$ inside $\Omega_{\text{floor}}$, and $H(x, y) = h_{\text{wall}}$ within $\Omega_{\text{wall}} \setminus \Omega_{\text{floor}}$.
+   * For a standing boss $\Omega_{\text{boss}} \subset \Omega_{\text{shelf}}$: $H(x, y) = h_{\text{boss}}$ inside $\Omega_{\text{boss}}$, and $H(x, y) = h_{\text{shelf}}$ within $\Omega_{\text{shelf}} \setminus \Omega_{\text{boss}}$.
+2. For any axial clearing pass targeting floor level $Z_{\text{floor}}$ beneath upper level $Z_{\text{upper}}$ ($Z_{\text{floor}} < Z_{\text{upper}}$):
+   * **Standing Obstacle Domain ($\Omega_{\text{above}}$)**: Areas where solid material must remain standing at or above $Z_{\text{upper}}$:
+     $$\Omega_{\text{above}}(Z_{\text{upper}}) = \{ (x, y) \in \mathbb{R}^2 \mid H(x, y) \ge Z_{\text{upper}} \}$$
+   * **Nominal 2D Clearing Region ($\Omega_{\text{clear}}$)**: The 2D domain to be cleared down to $Z_{\text{floor}}$:
+     $$\Omega_{\text{clear}}(Z_{\text{floor}}, Z_{\text{upper}}) = \{ (x, y) \in \mathbb{R}^2 \mid H(x, y) \le Z_{\text{floor}} \text{ and } (x, y) \text{ lies within enclosing parent boundary} \}$$
 
 ---
 
@@ -74,20 +77,21 @@ For any axial height transition from upper level $Z_{\text{upper}}$ down to floo
 
 #### B. Open Edge Overrun ($\Delta r_{\text{overrun}}$)
 * The boundary $\partial \Omega_{\text{clear}}$ consists of two types of edges:
-  1. **Standing Obstacle Edges**: Boundaries shared with standing features $\Omega_{\text{above}}$ (e.g., walls of an island). The cutter envelope **must not cross** into standing material. The tool centerline must be offset inward into $\Omega_{\text{clear}}$ by at least $+R_{\text{tool}}$ from standing walls.
+  1. **Standing Obstacle Edges**: Boundaries shared with standing features $\Omega_{\text{above}}$ (e.g., walls of an island or surrounding pocket walls). The cutter envelope **must not cross** into standing material. The tool centerline must be offset inward into $\Omega_{\text{clear}}$ by at least $+R_{\text{tool}}$ from standing walls.
   2. **Open Step Edges**: Outer boundaries of lower platforms (e.g., outer edge of $\Omega_{\text{shelf}}$) where material drops off to a lower $Z$-level or open space.
 * **Burr-Prevention Overrun**: To ensure no uncut ridge or burr remains along an open step edge, the cutter outer edge must extend beyond the open boundary by an overrun distance $\Delta r_{\text{overrun}}$:
   $$\Delta r_{\text{overrun}} = D_{\text{tool}} \cdot \left(1.0 - \frac{S\%}{100\%}\right)$$
   For $D_{\text{tool}} = 2.0\,\text{mm}$ and $S\% = 70\%$, $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$.
 * **Effective Tool Centerline Offset for Open Edges**:
-  $$\text{Offset}_{\text{open}} = -R_{\text{tool}} + \Delta r_{\text{overrun}}$$
-  For $R_{\text{tool}} = 1.0\,\text{mm}$ and $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$, the tool centerline is placed $0.4\,\text{mm}$ inside the nominal open edge, placing the outer cutter edge $0.6\,\text{mm}$ beyond the open edge.
+  $$\text{Offset}_{\text{open}} = -R_{\text{tool}} + \Delta r_{\text{overrun}} = -(R_{\text{tool}} - \Delta r_{\text{overrun}})$$
+  For $R_{\text{tool}} = 1.0\,\text{mm}$ and $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$, the tool centerline is set back (eroded) by $0.4\,\text{mm}$ inside the nominal open edge, placing the outer cutter edge $0.6\,\text{mm}$ beyond the open edge.
 
-#### C. Clipping Constraint Against Standing Obstacles
+#### C. Centerline Domain & Safety Clipping Against Standing Obstacles
 * **Hard Safety Constraint**: Open edge overrun applies **strictly to open step edges** and must be **clipped against standing features** ($\Omega_{\text{above}}$).
 * The allowable 2D domain for tool centerline coordinates $\mathbf{c}$ is strictly bounded by:
-  $$\mathcal{D}_{\text{centerline}} = \left( \Omega_{\text{clear}} \oplus \mathcal{B}_{\Delta r_{\text{overrun}}} \right) \setminus \left( \Omega_{\text{above}} \oplus \mathcal{B}_{R_{\text{tool}}} \right)$$
-  This guarantees that the tool sweeps fully past open step edges while maintaining a strict zero-gouging clearance against standing material of higher features.
+  $$\mathcal{D}_{\text{centerline}} = \left( \Omega_{\text{clear}} \ominus \mathcal{B}_{R_{\text{tool}} - \Delta r_{\text{overrun}}} \right) \setminus \left( \Omega_{\text{above}} \oplus \mathcal{B}_{R_{\text{tool}}} \right)$$
+  *(For general $\Delta r_{\text{overrun}}$, $\mathcal{D}_{\text{centerline}} = (\Omega_{\text{clear}} \oplus \mathcal{B}_{\Delta r_{\text{overrun}} - R_{\text{tool}}}) \setminus (\Omega_{\text{above}} \oplus \mathcal{B}_{R_{\text{tool}}})$).*
+* This formula guarantees that the tool outer edge sweeps fully $\Delta r_{\text{overrun}}$ past open step edges while maintaining a strict zero-gouging clearance against standing material of higher features.
 
 ---
 
@@ -104,13 +108,15 @@ When clearing material in the height band between $Z_{\text{upper}}$ and $Z_{\te
 
 ---
 
-### 3.5 Rule 5: Outer Profile Cutout Pass
+### 3.5 Rule 5: Outer Profile Cutout Pass & Stock Height Alignment
 
 * **Base Part Boundary ($\Omega_{\text{base}}$)**: The shape with the lowest extrusion height $h_{\text{base}}$ (or the outermost boundary shape at $h_{\text{base}}$) defines the finished 2D perimeter of the part.
-* **Cutout Z-Range**: The profile cutout operation runs from $Z = h_{\text{base}}$ down to the machine table surface $Z = 0.0\,\text{mm}$.
-* **Toolpath Offsetting**:
+* **Cutout Starting Z-Height ($Z_{\text{start}}$)**:
+  * Because raw stock outside the step overrun domain remains at stock top height $H_{\text{mat}}$, the outer profile cutout path (offset outward by $+R_{\text{tool}}$) **must start stepping down from $Z = H_{\text{mat}}$** down to $Z = 0.0\,\text{mm}$ (table level).
+  * This prevents the cutter from performing an excessive, un-stepped plunge through raw stock between $H_{\text{mat}}$ and $h_{\text{base}}$.
+* **Toolpath Offsetting & Axial Passes**:
   * Tool centerline is offset outward from $\partial \Omega_{\text{base}}$ by $+R_{\text{tool}}$ so the cutter edge touches the outer perimeter.
-  * The profile is stepped down axially in increments of $\Delta Z$ from $Z = h_{\text{base}}$ down to $Z = 0.0\,\text{mm}$.
+  * The profile is stepped down axially in increments of $\Delta Z$ from $Z = H_{\text{mat}}$ down to $Z = 0.0\,\text{mm}$.
 * **No Pocket Clearing**: Below $Z = h_{\text{base}}$, no pocket clearing is performed—only the continuous 2D outer profile contour path is executed down to $Z = 0.0\,\text{mm}$.
 
 ---
@@ -146,12 +152,12 @@ Applying this specification to `examples/rounded-large.bcam`:
    * Base platform extruded from $Z = 0.0$ to $Z = 5.0\,\text{mm}$.
    * **Step Region Clearing ($Z = 10.0 \to Z = 5.0\,\text{mm}$)**:
      $$\Omega_{\text{clear}} = \Omega_1 \setminus \Omega_2$$
-     * Tool centerline domain $\mathcal{D}_{\text{centerline}}$ expands open outer edges of $\Omega_1$ by $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$, clipped strictly against $\Omega_2 \oplus \mathcal{B}_{1.0\,\text{mm}}$.
+     * Tool centerline domain $\mathcal{D}_{\text{centerline}} = (\Omega_1 \ominus \mathcal{B}_{0.4\,\text{mm}}) \setminus (\Omega_2 \oplus \mathcal{B}_{1.0\,\text{mm}})$ sets back open outer edges of $\Omega_1$ by $0.4\,\text{mm}$ (extending outer cutter edge $0.6\,\text{mm}$ past $\partial \Omega_1$), while clipping strictly against $\Omega_2 \oplus \mathcal{B}_{1.0\,\text{mm}}$.
      * Cleared in 5 axial passes ($Z = 9.0, 8.0, 7.0, 6.0, 5.0\,\text{mm}$) with concentric pocket loops spaced at $w_{\text{step}} = 1.4\,\text{mm}$.
 
-3. **Part Cutout Pass ($Z = 5.0 \to Z = 0.0\,\text{mm}$)**:
+3. **Part Cutout Pass ($Z = 10.0 \to Z = 0.0\,\text{mm}$)**:
    * Outer perimeter profile of $\Omega_1$ offset outward by $+R_{\text{tool}} = 1.0\,\text{mm}$.
-   * Stepped down axially in 5 passes ($Z = 4.0, 3.0, 2.0, 1.0, 0.0\,\text{mm}$) to cut the part out from the stock block.
+   * Stepped down axially in 10 passes ($Z = 9.0, 8.0, \dots, 0.0\,\text{mm}$) from $H_{\text{mat}} = 10.0\,\text{mm}$ down to table level $Z = 0.0\,\text{mm}$ to safely cut the part out from raw stock without exceeding stepdown $\Delta Z$.
 
 ---
 
