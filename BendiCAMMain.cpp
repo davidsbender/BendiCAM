@@ -228,6 +228,8 @@ const wxWindowID BendiCAMFrame::ID_STATICTEXT10 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL11 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_STATICTEXT11 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_TEXTCTRL12 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_STATICTEXT12 = wxNewId();
+const wxWindowID BendiCAMFrame::ID_TEXTCTRL13 = wxNewId();
 const wxWindowID BendiCAMFrame::ID_BUTTON3 = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuOpen = wxNewId();
 const wxWindowID BendiCAMFrame::idMenuOpenProject = wxNewId();
@@ -289,6 +291,8 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     TextCtrlToolStepover = new wxTextCtrl(this, ID_TEXTCTRL9, _T("70"), wxPoint(880,466), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL9"));
     StaticTextToolRampAngle = new wxStaticText(this, ID_STATICTEXT9, _("Ramp Angle (�):"), wxPoint(692,494), wxDefaultSize, 0, _T("ID_STATICTEXT9"));
     TextCtrlToolRampAngle = new wxTextCtrl(this, ID_TEXTCTRL10, _T("20"), wxPoint(768,492), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL10"));
+    StaticTextToolOvercut = new wxStaticText(this, ID_STATICTEXT12, _("Overcut (%):"), wxPoint(815,494), wxDefaultSize, 0, _T("ID_STATICTEXT12"));
+    TextCtrlToolOvercut = new wxTextCtrl(this, ID_TEXTCTRL13, _T("30"), wxPoint(880,492), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL13"));
     StaticBoxMaterial = new wxStaticBox(this, ID_STATICBOX6, _("Material & Safety"), wxPoint(680,537), wxSize(223,50), 0, _T("ID_STATICBOX6"));
     StaticTextMatTopHeight = new wxStaticText(this, ID_STATICTEXT10, _("Top Height (mm):"), wxPoint(692,555), wxDefaultSize, 0, _T("ID_STATICTEXT10"));
     TextCtrlMatTopHeight = new wxTextCtrl(this, ID_TEXTCTRL11, _T("10"), wxPoint(768,553), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL11"));
@@ -326,6 +330,7 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     Connect(ID_TEXTCTRL8, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
     Connect(ID_TEXTCTRL9, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
     Connect(ID_TEXTCTRL10, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
+    Connect(ID_TEXTCTRL13, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
     Connect(ID_TEXTCTRL11, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
     Connect(ID_TEXTCTRL12, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&BendiCAMFrame::OnToolOrMaterialSettingChange);
     Connect(ID_BUTTON3, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&BendiCAMFrame::OnExportGCode);
@@ -561,10 +566,13 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
         if (StaticTextToolStepover) StaticTextToolStepover->SetSize(midX + 4, r3Y + 2, rightLabelW, 20);
         if (TextCtrlToolStepover) TextCtrlToolStepover->SetSize(midX + 4 + rightLabelW, r3Y, std::max(10, (4 + boxW - 8) - (midX + 4 + rightLabelW)), 22);
 
-        // Row 4: Ramp Angle
+        // Row 4: Ramp Angle | Overcut (%)
         int r4Y = toolY + 96;
         if (StaticTextToolRampAngle) StaticTextToolRampAngle->SetSize(14, r4Y + 2, leftLabelW, 20);
         if (TextCtrlToolRampAngle) TextCtrlToolRampAngle->SetSize(14 + leftLabelW, r4Y, std::max(10, midX - (14 + leftLabelW) - 4), 22);
+
+        if (StaticTextToolOvercut) StaticTextToolOvercut->SetSize(midX + 4, r4Y + 2, rightLabelW, 20);
+        if (TextCtrlToolOvercut) TextCtrlToolOvercut->SetSize(midX + 4 + rightLabelW, r4Y, std::max(10, (4 + boxW - 8) - (midX + 4 + rightLabelW)), 22);
     }
 
     int matY = toolY + toolH + 6;
@@ -1722,7 +1730,151 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         drawEntityGeometry(entity);
     }
 
-    // Pass 3: Selected Shape Outline Overlay Pass (Removed per user request)
+        double toolDiameter = 2.0;
+        double overcutPercent = 30.0;
+        if (TextCtrlToolDiameter) TextCtrlToolDiameter->GetValue().ToDouble(&toolDiameter);
+        if (TextCtrlToolOvercut) TextCtrlToolOvercut->GetValue().ToDouble(&overcutPercent);
+        if (toolDiameter <= 1e-4) toolDiameter = 2.0;
+        if (overcutPercent < 0.0) overcutPercent = 30.0;
+        double toolRadius = toolDiameter * 0.5;
+
+        // Data structure containing the 7 paths for the selected shape / lower shape
+        struct SelectedShapeProcessingPaths {
+            std::vector<AnalyticalPath> shapeOutline;
+            std::vector<AnalyticalPath> shapeToolPath;
+            std::vector<AnalyticalPath> shapeCutZone;
+            std::vector<AnalyticalPath> materialOutline;       // empty if no lower shape
+            std::vector<AnalyticalPath> materialCutZoneInner;  // empty if no lower shape
+            std::vector<AnalyticalPath> materialToolPath;      // empty if no lower shape
+            std::vector<AnalyticalPath> materialCutZoneOuter;  // empty if no lower shape
+        };
+
+        SelectedShapeProcessingPaths procPaths;
+
+        if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
+            const auto& part = m_parts[m_selectedPartIndex];
+            int shapeIdx = (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)part.shapes.size()) ? m_selectedShapeInPartIndex : 0;
+            if (!part.shapes.empty() && shapeIdx >= 0 && shapeIdx < (int)part.shapes.size()) {
+                const auto& selShape = part.shapes[shapeIdx];
+                double selDepth = selShape.depth;
+                auto selAnalyticalPaths = getShapeAnalyticalPaths(selShape);
+
+                for (const auto& path : selAnalyticalPaths) {
+                    AnalyticalPath loop = path;
+                    ensureLoopOrientation(loop, true);
+                    procPaths.shapeOutline.push_back(loop);
+
+                    auto tPaths = offsetAnalyticalPath(loop, -toolRadius);
+                    for (auto tp : tPaths) { ensureLoopOrientation(tp, true); procPaths.shapeToolPath.push_back(tp); }
+
+                    auto cPaths = offsetAnalyticalPath(loop, -toolDiameter);
+                    for (auto cp : cPaths) { ensureLoopOrientation(cp, true); procPaths.shapeCutZone.push_back(cp); }
+                }
+
+                // Find shape below
+                const CamShape* shapeBelow = nullptr;
+                double maxBelowDepth = -1.0;
+                std::vector<DxfPoint> selSamplePts;
+                for (const auto& sp : selAnalyticalPaths) {
+                    auto pts = sampleAnalyticalPath(sp, 0.5);
+                    selSamplePts.insert(selSamplePts.end(), pts.begin(), pts.end());
+                }
+
+                for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
+                    if ((int)sIdx == shapeIdx) continue;
+                    const auto& candidateShape = part.shapes[sIdx];
+                    if (candidateShape.depth < selDepth - 1e-4) {
+                        auto candPaths = getShapeAnalyticalPaths(candidateShape);
+                        bool surrounds = false;
+                        if (!selSamplePts.empty() && !candPaths.empty()) {
+                            int insideCount = 0;
+                            for (const auto& pt : selSamplePts) {
+                                for (const auto& cPath : candPaths) {
+                                    if (isPointInsideAnalyticalPath(pt, cPath)) { insideCount++; break; }
+                                }
+                            }
+                            if ((double)insideCount / selSamplePts.size() > 0.5) surrounds = true;
+                        }
+                        if (surrounds) {
+                            if (shapeBelow == nullptr || candidateShape.depth > maxBelowDepth) {
+                                shapeBelow = &candidateShape;
+                                maxBelowDepth = candidateShape.depth;
+                            }
+                        }
+                    }
+                }
+
+                if (!shapeBelow) {
+                    for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
+                        if ((int)sIdx == shapeIdx) continue;
+                        const auto& candidateShape = part.shapes[sIdx];
+                        if (candidateShape.depth < selDepth - 1e-4) {
+                            if (shapeBelow == nullptr || candidateShape.depth > maxBelowDepth) {
+                                shapeBelow = &candidateShape;
+                                maxBelowDepth = candidateShape.depth;
+                            }
+                        }
+                    }
+                }
+
+                if (shapeBelow != nullptr) {
+                    auto belowPaths = getShapeAnalyticalPaths(*shapeBelow);
+                    double extensionFraction = std::max(0.0, (100.0 - overcutPercent) / 100.0);
+                    double inwardDist = toolDiameter * extensionFraction;
+
+                    for (const auto& bPath : belowPaths) {
+                        AnalyticalPath bLoop = bPath;
+                        ensureLoopOrientation(bLoop, true);
+                        procPaths.materialOutline.push_back(bLoop);
+
+                        auto innerPaths = offsetAnalyticalPath(bLoop, -inwardDist);
+                        for (const auto& inPath : innerPaths) {
+                            AnalyticalPath inLoop = inPath;
+                            ensureLoopOrientation(inLoop, true);
+                            procPaths.materialCutZoneInner.push_back(inLoop);
+
+                            auto mToolPaths = offsetAnalyticalPath(inLoop, -toolRadius);
+                            for (auto mtp : mToolPaths) { ensureLoopOrientation(mtp, true); procPaths.materialToolPath.push_back(mtp); }
+
+                            auto mOuterPaths = offsetAnalyticalPath(inLoop, -toolDiameter);
+                            for (auto mop : mOuterPaths) { ensureLoopOrientation(mop, true); procPaths.materialCutZoneOuter.push_back(mop); }
+                        }
+                    }
+                }
+
+                // Render the 7 paths
+                std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+                if (gc) {
+                    wxColour colAmber(230, 100, 0); // Dark amber
+                    wxColour colBlue(0, 0, 180);    // Dark blue
+
+                    auto drawPaths = [&](const std::vector<AnalyticalPath>& paths, const wxColour& col, bool dashed) {
+                        gc->SetPen(wxPen(col, 2, dashed ? wxPENSTYLE_SHORT_DASH : wxPENSTYLE_SOLID));
+                        gc->SetBrush(*wxTRANSPARENT_BRUSH);
+                        for (const auto& path : paths) {
+                            auto pts = sampleAnalyticalPath(path, 0.5);
+                            if (pts.size() >= 3) {
+                                wxGraphicsPath gpath = gc->CreatePath();
+                                gpath.MoveToPoint(ToScreen(pts[0].x, pts[0].y));
+                                for (size_t i = 1; i < pts.size(); ++i) {
+                                    gpath.AddLineToPoint(ToScreen(pts[i].x, pts[i].y));
+                                }
+                                gpath.CloseSubpath();
+                                gc->StrokePath(gpath);
+                            }
+                        }
+                    };
+
+                    drawPaths(procPaths.shapeOutline, colAmber, true);          // 1. ShapeOutline
+                    drawPaths(procPaths.shapeToolPath, colBlue, true);          // 2. ShapeToolPath
+                    drawPaths(procPaths.shapeCutZone, colAmber, true);          // 3. ShapeCutZone
+                    drawPaths(procPaths.materialOutline, colAmber, true);       // 4. MaterialOutline
+                    drawPaths(procPaths.materialCutZoneInner, colAmber, true);  // 5. MaterialCutZoneInner
+                    drawPaths(procPaths.materialToolPath, colBlue, true);       // 6. MaterialToolPath
+                    drawPaths(procPaths.materialCutZoneOuter, colAmber, true);  // 7. MaterialCutZoneOuter
+                }
+            }
+        }
 }
 
 void BendiCAMFrame::OnPanel3DPaint(wxPaintEvent& event)
