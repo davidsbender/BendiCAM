@@ -1930,6 +1930,43 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
 
         drawEntityGeometry(entity);
     }
+
+    // Pass 3: Selected Shape Outline Overlay Pass (dashed dark amber outline on top of selected shape)
+    if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
+        const auto& part = m_parts[m_selectedPartIndex];
+        std::vector<int> targetShapeIndices;
+        if (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)part.shapes.size()) {
+            targetShapeIndices.push_back(m_selectedShapeInPartIndex);
+        } else {
+            for (int i = 0; i < (int)part.shapes.size(); ++i) {
+                targetShapeIndices.push_back(i);
+            }
+        }
+
+        std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+        if (gc) {
+            wxColour penCol(230, 100, 0); // Darker amber for dashed borders
+            gc->SetPen(wxPen(penCol, 2, wxPENSTYLE_SHORT_DASH));
+            gc->SetBrush(*wxTRANSPARENT_BRUSH);
+
+            for (int shapeIdx : targetShapeIndices) {
+                const auto& selShape = part.shapes[shapeIdx];
+                auto selAnalyticalPaths = getShapeAnalyticalPaths(selShape);
+                for (const auto& path : selAnalyticalPaths) {
+                    auto pts = sampleAnalyticalPath(path, 0.5);
+                    if (pts.size() >= 3) {
+                        wxGraphicsPath borderPath = gc->CreatePath();
+                        borderPath.MoveToPoint(ToScreen(pts[0].x, pts[0].y));
+                        for (size_t i = 1; i < pts.size(); ++i) {
+                            borderPath.AddLineToPoint(ToScreen(pts[i].x, pts[i].y));
+                        }
+                        borderPath.CloseSubpath();
+                        gc->StrokePath(borderPath);
+                    }
+                }
+            }
+        }
+    }
 }
 
 void BendiCAMFrame::OnPanel3DPaint(wxPaintEvent& event)
