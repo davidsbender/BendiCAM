@@ -1926,9 +1926,12 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                                                         nx /= nLen;
                                                         ny /= nLen;
                                                         DxfPoint apexPt(vertexPt.x + nx * spurDist, vertexPt.y + ny * spurDist);
-                                                        // Add out-and-back spur: vertexPt -> apexPt -> vertexPt
-                                                        spurredPath.push_back(PathPrimitive::CreateLine(vertexPt, apexPt));
-                                                        spurredPath.push_back(PathPrimitive::CreateLine(apexPt, vertexPt));
+                                                        PathPrimitive s1 = PathPrimitive::CreateLine(vertexPt, apexPt);
+                                                         PathPrimitive s2 = PathPrimitive::CreateLine(apexPt, vertexPt);
+                                                         s1.isSpur = true;
+                                                         s2.isSpur = true;
+                                                         spurredPath.push_back(s1);
+                                                         spurredPath.push_back(s2);
                                                     }
                                                 }
                                             }
@@ -2918,3 +2921,4 @@ void BendiCAMFrame::OnClose(wxCloseEvent& event)
     }
     Destroy();
 }
+
