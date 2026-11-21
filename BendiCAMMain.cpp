@@ -1819,25 +1819,41 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
 
                 if (shapeBelow != nullptr) {
                     auto belowPaths = getShapeAnalyticalPaths(*shapeBelow);
-                    double extensionFraction = std::max(0.0, (100.0 - overcutPercent) / 100.0);
-                    double inwardDist = toolDiameter * extensionFraction;
+                    double expansionFactor = (overcutPercent / 100.0) - 0.5;
+                    double expansionDist = expansionFactor * toolDiameter;
+                    // Positive expansion = outward = negative distance in offsetAnalyticalPath / offsetAnalyticalPathRaw
+                    // Negative expansion = reduction = inward = positive distance in offsetAnalyticalPath / offsetAnalyticalPathRaw
+                    double offsetDist = -expansionDist;
 
                     for (const auto& bPath : belowPaths) {
                         AnalyticalPath bLoop = bPath;
                         ensureLoopOrientation(bLoop, true);
                         procPaths.materialOutline.push_back(bLoop);
 
-                        auto innerPaths = offsetAnalyticalPath(bLoop, inwardDist);
-                        for (const auto& inPath : innerPaths) {
-                            AnalyticalPath inLoop = inPath;
-                            ensureLoopOrientation(inLoop, true);
-                            procPaths.materialCutZoneInner.push_back(inLoop);
+                        // MaterialToolPath is MaterialOutline reduced or expanded by offsetDist.
+                        AnalyticalPath rawToolPath = offsetAnalyticalPathRaw(bLoop, offsetDist);
+                        if (rawToolPath.size() >= 2) {
+                            AnalyticalPath cleanTp = cleanDegeneratePrimitives(rawToolPath);
+                            if (cleanTp.size() >= 2) {
+                                ensureLoopOrientation(cleanTp, true);
+                                procPaths.materialToolPath.push_back(cleanTp);
 
-                            auto mToolPaths = offsetAnalyticalPath(inLoop, -toolRadius);
-                            for (auto mtp : mToolPaths) { ensureLoopOrientation(mtp, true); procPaths.materialToolPath.push_back(mtp); }
+                                // MaterialCutZoneInner shall now be MaterialToolPath, reduced (inward) by tool radius.
+                                // Inward reduction = positive distance (+toolRadius)
+                                auto innerPaths = offsetAnalyticalPath(cleanTp, toolRadius);
+                                for (auto inPath : innerPaths) {
+                                    ensureLoopOrientation(inPath, true);
+                                    procPaths.materialCutZoneInner.push_back(inPath);
+                                }
 
-                            auto mOuterPaths = offsetAnalyticalPath(inLoop, -toolDiameter);
-                            for (auto mop : mOuterPaths) { ensureLoopOrientation(mop, true); procPaths.materialCutZoneOuter.push_back(mop); }
+                                // MaterialCutZoneOuter shall now be MaterialToolPath, expanded (outward) by tool radius.
+                                // Outward expansion = negative distance (-toolRadius)
+                                auto outerPaths = offsetAnalyticalPath(cleanTp, -toolRadius);
+                                for (auto outPath : outerPaths) {
+                                    ensureLoopOrientation(outPath, true);
+                                    procPaths.materialCutZoneOuter.push_back(outPath);
+                                }
+                            }
                         }
                     }
                 }

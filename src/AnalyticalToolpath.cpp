@@ -752,9 +752,9 @@ static bool isIntersectionWithinBounds(const PathPrimitive& p1, const PathPrimit
     return true;
 }
 
-std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, double dist) {
-    std::vector<AnalyticalPath> result;
-    if (inPath.size() < 2) return result;
+AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist) {
+    AnalyticalPath rawOffset;
+    if (inPath.size() < 2) return rawOffset;
 
     AnalyticalPath path = inPath;
     ensureLoopOrientation(path, true); // Enforce CCW outer orientation
@@ -771,7 +771,7 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
         }
     }
 
-    if (validOffsetPrims.size() < 2) return result;
+    if (validOffsetPrims.size() < 2) return rawOffset;
 
     size_t m = validOffsetPrims.size();
     std::vector<bool> isRollAround(m, false);
@@ -820,7 +820,6 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
     }
 
     // Pass 2: Assemble raw offset loop with updated endpoints and roll-around arcs
-    AnalyticalPath rawOffset;
     for (size_t i = 0; i < m; ++i) {
         rawOffset.push_back(validOffsetPrims[i]);
         if (isRollAround[i] && !isDegeneratePrimitive(rollAroundArcs[i])) {
@@ -841,6 +840,12 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
         }
     }
 
+    return rawOffset;
+}
+
+std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, double dist) {
+    AnalyticalPath rawOffset = offsetAnalyticalPathRaw(inPath, dist);
+    if (rawOffset.size() < 2) return std::vector<AnalyticalPath>();
     bool isOutward = (dist < 0.0);
     return pruneSelfIntersectionsAndSplit(rawOffset, &inPath, std::abs(dist), isOutward);
 }

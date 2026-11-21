@@ -101,6 +101,7 @@ PathPrimitive createRollAroundArc(const PathPrimitive& prim1, const PathPrimitiv
 bool findPrimitiveIntersection(const PathPrimitive& p1, const PathPrimitive& p2, DxfPoint& outIntersect);
 bool findPrimitiveIntersectionBounded(const PathPrimitive& p1, const PathPrimitive& p2, DxfPoint& outIntersect);
 
+AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist);
 std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& path, double dist);
 AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path);
 
