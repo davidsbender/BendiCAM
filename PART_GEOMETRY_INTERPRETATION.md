@@ -2,128 +2,173 @@
 
 ## 1. Executive Summary & Paradigm Overview
 
-In BendiCAM, a 3D **Part** is defined using a 2.5D solid representation built from **stepped shape extrusions**. Each shape in a part represents a feature extruded vertically from the machine table ($Z = 0\,\text{mm}$) up to the height specified by its `depth` field ($Z = h$).
+In BendiCAM, a 3D **Part** is represented as a 2.5D solid constructed from **stepped shape extrusions**. Each shape in a part represents a 2D geometric domain extruded vertically from the machine table ($Z = 0.0\,\text{mm}$) up to the height specified by its `depth` field ($Z = h$).
 
-### Fundamental Principles
-* **Raw Material Stock**: The material stock block has a total height $H_{\text{mat}}$ (`topHeight`, e.g., $10.0\,\text{mm}$), occupying the $Z$-range $[0, H_{\text{mat}}]$.
-* **Extrusion Heights**: A shape $S_i$ with height $h_i$ defines a solid feature from $Z = 0\,\text{mm}$ up to $Z = h_i\,\text{mm}$.
-* **Material Removal (Milling)**: Milling is the process of removing unwanted raw stock down to the top surface height $Z = h_i$ of each feature, and clearing the stepped regions between features.
+### Fundamental Coordinates & Parameters
+* **Table Reference ($Z = 0.0\,\text{mm}$)**: The bottom surface of the raw material stock resting on the CNC machine table.
+* **Material Stock Top Height ($H_{\text{mat}}$)**: Total thickness of the raw stock block (`topHeight`, e.g., $10.0\,\text{mm}$), defining the stock volume $Z \in [0.0, H_{\text{mat}}]$.
+* **Extrusion Heights ($h_i$)**: A shape $S_i$ with height parameter $h_i \in (0.0, H_{\text{mat}}]$ defines a solid volume extending from $Z = 0.0\,\text{mm}$ up to $Z = h_i\,\text{mm}$.
+* **Material Removal (Milling)**: Milling removes raw stock from $Z = H_{\text{mat}}$ down to the target top surface height $Z = h_i$ of each feature, and clears the stepped regions between features.
 
 ---
 
-## 2. Geometric Rules for Shape Extrusion & Milling
+## 2. 2D Planar Regions & Analytical Boundary Definitions
 
-### Rule 1: Solid Feature Extrusion
-* A shape $S_i$ with `depth` $h_i$ means material within $S_i$'s boundary must **remain standing** up to $Z = h_i\,\text{mm}$.
-* No clearing/milling is allowed inside $S_i$'s boundary below $Z = h_i\,\text{mm}$.
-* If $h_i = H_{\text{mat}}$ (e.g., $10.0\,\text{mm}$):
+To maintain consistency with BendiCAM's analytical toolpath engine (`TOOLPATH_ARCHITECTURE.md`), geometry is represented using **2D planar regions** bounded by ordered analytical primitives (`LINE` and `ARC`).
+
+### Definitions
+* **Analytical Boundary Loop ($\partial \Omega$)**: A closed, oriented 2D curve composed of an ordered vector of `PathPrimitive` elements (`LINE` segments and circular `ARC` segments). Counter-Clockwise (CCW) orientation defines an outer boundary; Clockwise (CW) orientation defines an inner hole/island boundary.
+* **Planar Region ($\Omega \subset \mathbb{R}^2$)**: The closed 2D area domain enclosed by an analytical boundary loop $\partial \Omega$.
+* **Minkowski Disk ($\mathcal{B}_r$)**: A closed 2D circular disk of radius $r$ centered at the origin:
+  $$\mathcal{B}_r = \{ \mathbf{p} \in \mathbb{R}^2 \mid \|\mathbf{p}\| \le r \}$$
+* **Cutter Centerline vs. Cutter Envelope**:
+  * For a tool of diameter $D_{\text{tool}}$, the tool radius is $R_{\text{tool}} = D_{\text{tool}} / 2.0$.
+  * If the tool centerline is positioned at 2D point $\mathbf{c} = (x, y)$, the **cutter envelope** (physical volume swept by the cutting edges) covers the 2D disk $\mathbf{c} \oplus \mathcal{B}_{R_{\text{tool}}}$.
+  * Toolpath generation determines the locus of **tool centerline coordinates** $\mathbf{c}(t)$ such that the cutter envelope clears the intended 2D domain without gouging standing material.
+
+---
+
+## 3. Geometric Rules for Feature Hierarchy, Extrusion & Milling
+
+### 3.1 Rule 1: Solid Feature Extrusion & Heights
+* A shape $S_i$ with height $h_i$ defines a solid feature occupying 3D space $V_i = \Omega_i \times [0.0, h_i]$.
+* Material within $\Omega_i$ must **remain standing** up to $Z = h_i\,\text{mm}$. No material removal is permitted inside $\Omega_i$ below $Z = h_i\,\text{mm}$.
+* If $h_i = H_{\text{mat}}$ (e.g., $10.0\,\text{mm} = 10.0\,\text{mm}$):
   * The feature extends to the full height of the raw stock.
-  * **No clearing/pocket milling** is required on top of this shape because the raw stock surface is already at $Z = H_{\text{mat}}$.
-
-### Rule 2: Stepped Region Clearing (Between Shapes)
-* When a taller shape $S_{\text{tall}}$ ($h_{\text{tall}} = 10.0\,\text{mm}$) sits inside or adjacent to a shorter shape $S_{\text{short}}$ ($h_{\text{short}} = 5.0\,\text{mm}$):
-  * The region between $S_{\text{tall}}$'s boundary and $S_{\text{short}}$'s boundary forms a **stepped shelf** existing between $Z = h_{\text{short}}$ and $Z = h_{\text{tall}}$.
-  * Raw material in this annular region must be cleared from $Z = H_{\text{mat}}$ down to $Z = h_{\text{short}}$.
-  * Pocket clearing must observe the configured tool **stepover** percentage (e.g., $70\%$).
-
-### Rule 3: Stepover Extension at Boundary Edges
-* At the outer boundary of a step (e.g. $S_{\text{short}}$ at height $h_{\text{short}}$), toolpath clearing must extend beyond the shape's boundary edge.
-* With a tool stepover of $S\% = 70\%$, the clearing toolpath must extend at least:
-  $$\text{Extension} = (100\% - S\%) \cdot D_{\text{tool}} = 30\% \cdot D_{\text{tool}}$$
-  past the boundary of $S_{\text{short}}$ at $Z = h_{\text{short}}$ to guarantee complete material clearance over the step's edge.
-
-### Rule 4: Outer Contour Cutout Pass
-* The largest/outermost shape $S_{\text{outer}}$ (with height $h_{\text{outer}}$, e.g. $5.0\,\text{mm}$) defines the outer boundary of the part below $h_{\text{outer}}$.
-* From $Z = h_{\text{outer}}$ down to $Z = 0.0\,\text{mm}$, the tool mills around the outer profile of $S_{\text{outer}}$ (offset outward by tool radius $R_{\text{tool}}$) to cut the finished part out of the stock block.
-* No pocket clearing is performed below $Z = h_{\text{outer}}$—only a continuous perimeter cutout pass down to $Z = 0.0\,\text{mm}$.
-
-### Rule 5: Geometric Shape Containment Hierarchy
-For this stepped 2.5D extrusion scheme to be geometrically valid, **any taller shape ($S_{\text{tall}}$, higher $Z$) must lie completely contained within the 2D footprint of the shorter shape ($S_{\text{short}}$, lower $Z$) beneath it**:
-$$\text{Footprint}(S_{\text{tall}}) \subseteq \text{Footprint}(S_{\text{short}})$$
-
-#### Technical & CAM Justification
-1. **Physical Support & Base Platform Hierarchy**: If $S_{\text{short}}$ ($h = 5.0\,\text{mm}$) is the base platform and $S_{\text{tall}}$ ($h = 10.0\,\text{mm}$) is a tower feature on top of it, $S_{\text{tall}}$ cannot overhang outside $S_{\text{short}}$. Overhanging geometry would extend down to $Z = 0.0\,\text{mm}$ outside $S_{\text{short}}$, violating the definition of $S_{\text{short}}$ as the supporting base.
-2. **Well-Defined Annular Step Domain**: The stepped shelf region to be cleared between $Z = H_{\text{mat}}$ ($10.0\,\text{mm}$) and $Z = h_{\text{short}}$ ($5.0\,\text{mm}$) is defined by the set difference:
-   $$\text{Clearing Domain} = \text{Footprint}(S_{\text{short}}) \setminus \text{Footprint}(S_{\text{tall}})$$
-   For this domain to form a valid, closed annular shelf surrounding $S_{\text{tall}}$, $S_{\text{tall}}$ must be strictly enclosed within $S_{\text{short}}$.
-3. **Multi-Feature Generalization**: If a part has multiple bosses/towers at $h = 10.0\,\text{mm}$ ($S_A, S_B$) standing on a $h = 5.0\,\text{mm}$ platform ($S_1$):
-   * Each taller feature ($S_A, S_B$) must lie completely inside $S_1$.
-   * Taller features at the same $Z$-level cannot overlap each other.
-   * The step clearing domain becomes:
-     $$\text{Clearing Domain} = \text{Footprint}(S_1) \setminus \left( \text{Footprint}(S_A) \cup \text{Footprint}(S_B) \right)$$
+  * **Zero top clearing / pocket milling** is required inside $\Omega_i$, as the raw stock surface already sits at $Z = H_{\text{mat}}$.
 
 ---
 
-## 3. Case Study: `rounded-large.bcam`
+### 3.2 Rule 2: Generalized Feature Hierarchy (Bosses & Pockets)
+
+BendiCAM supports two complementary 2.5D feature topologies:
+
+#### A. Bosses / Islands ($h_{\text{island}} > h_{\text{shelf}}$)
+* A taller feature $\Omega_{\text{island}}$ (e.g., height $h_{\text{island}} = 10.0\,\text{mm}$) stands on top of a lower base platform $\Omega_{\text{shelf}}$ (e.g., height $h_{\text{shelf}} = 5.0\,\text{mm}$).
+* **Nominal Containment**: The 2D region of the taller island must lie inside the base platform:
+  $$\Omega_{\text{island}} \subset \text{Int}(\Omega_{\text{shelf}})$$
+
+#### B. Pockets / Recesses ($h_{\text{floor}} < h_{\text{wall}}$)
+* A lower floor feature $\Omega_{\text{floor}}$ (e.g., height $h_{\text{floor}} = 4.0\,\text{mm}$) is recessed inside a taller surrounding wall/plateau $\Omega_{\text{wall}}$ (e.g., height $h_{\text{wall}} = 10.0\,\text{mm}$).
+* **Nominal Containment**: The 2D region of the pocket floor must lie inside the surrounding wall:
+  $$\Omega_{\text{floor}} \subset \text{Int}(\Omega_{\text{wall}})$$
+
+#### C. Generalized Multi-Feature Set Formulation
+For any axial height transition from upper level $Z_{\text{upper}}$ down to floor level $Z_{\text{floor}}$ ($Z_{\text{floor}} < Z_{\text{upper}}$):
+1. Define the **lower platform domain** $\Omega_{\text{below}}(Z_{\text{floor}})$ as the 2D union of all shapes with height $h \ge Z_{\text{floor}}$:
+   $$\Omega_{\text{below}}(Z_{\text{floor}}) = \bigcup \{ \Omega_i \mid h_i \ge Z_{\text{floor}} \}$$
+2. Define the **standing obstacle domain** $\Omega_{\text{above}}(Z_{\text{upper}})$ as the 2D union of all shapes with height $h \ge Z_{\text{upper}}$:
+   $$\Omega_{\text{above}}(Z_{\text{upper}}) = \bigcup \{ \Omega_j \mid h_j \ge Z_{\text{upper}} \}$$
+3. The nominal 2D clearing region $\Omega_{\text{clear}}$ for the height band $Z \in [Z_{\text{floor}}, Z_{\text{upper}}]$ is the 2D set difference:
+   $$\Omega_{\text{clear}} = \Omega_{\text{below}}(Z_{\text{lower}}) \setminus \Omega_{\text{above}}(Z_{\text{upper}})$$
+
+---
+
+### 3.3 Rule 3: Stepover vs. Burr-Prevention Open Edge Overrun
+
+#### A. Tool Stepover ($S\%$)
+* **Stepover Percentage ($S\%$)**: Configured radial distance between adjacent parallel/concentric toolpath passes, expressed as a percentage of tool diameter $D_{\text{tool}}$ (e.g., $70\%$).
+* **Radial Pass Spacing ($w_{\text{step}}$)**:
+  $$w_{\text{step}} = D_{\text{tool}} \cdot \frac{S\%}{100\%}$$
+  For $D_{\text{tool}} = 2.0\,\text{mm}$ and $S\% = 70\%$, $w_{\text{step}} = 1.4\,\text{mm}$.
+
+#### B. Open Edge Overrun ($\Delta r_{\text{overrun}}$)
+* The boundary $\partial \Omega_{\text{clear}}$ consists of two types of edges:
+  1. **Standing Obstacle Edges**: Boundaries shared with standing features $\Omega_{\text{above}}$ (e.g., walls of an island). The cutter envelope **must not cross** into standing material. The tool centerline must be offset inward into $\Omega_{\text{clear}}$ by at least $+R_{\text{tool}}$ from standing walls.
+  2. **Open Step Edges**: Outer boundaries of lower platforms (e.g., outer edge of $\Omega_{\text{shelf}}$) where material drops off to a lower $Z$-level or open space.
+* **Burr-Prevention Overrun**: To ensure no uncut ridge or burr remains along an open step edge, the cutter outer edge must extend beyond the open boundary by an overrun distance $\Delta r_{\text{overrun}}$:
+  $$\Delta r_{\text{overrun}} = D_{\text{tool}} \cdot \left(1.0 - \frac{S\%}{100\%}\right)$$
+  For $D_{\text{tool}} = 2.0\,\text{mm}$ and $S\% = 70\%$, $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$.
+* **Effective Tool Centerline Offset for Open Edges**:
+  $$\text{Offset}_{\text{open}} = -R_{\text{tool}} + \Delta r_{\text{overrun}}$$
+  For $R_{\text{tool}} = 1.0\,\text{mm}$ and $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$, the tool centerline is placed $0.4\,\text{mm}$ inside the nominal open edge, placing the outer cutter edge $0.6\,\text{mm}$ beyond the open edge.
+
+#### C. Clipping Constraint Against Standing Obstacles
+* **Hard Safety Constraint**: Open edge overrun applies **strictly to open step edges** and must be **clipped against standing features** ($\Omega_{\text{above}}$).
+* The allowable 2D domain for tool centerline coordinates $\mathbf{c}$ is strictly bounded by:
+  $$\mathcal{D}_{\text{centerline}} = \left( \Omega_{\text{clear}} \oplus \mathcal{B}_{\Delta r_{\text{overrun}}} \right) \setminus \left( \Omega_{\text{above}} \oplus \mathcal{B}_{R_{\text{tool}}} \right)$$
+  This guarantees that the tool sweeps fully past open step edges while maintaining a strict zero-gouging clearance against standing material of higher features.
+
+---
+
+### 3.4 Rule 4: Axial Stepdown ($\Delta Z$) & Z-Pass Structuring
+
+When clearing material in the height band between $Z_{\text{upper}}$ and $Z_{\text{floor}}$:
+* **Axial Stepdown ($\Delta Z$)**: Maximum material depth cut in a single Z-pass (`stepdown`, e.g., $1.0\,\text{mm}$).
+* **Pass Level Calculation**:
+  1. Calculate the number of equal or sub-stepdown axial passes:
+     $$N_{\text{passes}} = \left\lceil \frac{Z_{\text{upper}} - Z_{\text{floor}}}{\Delta Z} \right\rceil$$
+  2. Discrete pass depths $Z_k$ for $k = 1, 2, \dots, N_{\text{passes}}$ are calculated as:
+     $$Z_k = Z_{\text{upper}} - k \cdot \frac{Z_{\text{upper}} - Z_{\text{floor}}}{N_{\text{passes}}}$$
+* **Ramping Entry**: Each Z-pass plunges into material along a helical or linear ramp at the configured `rampAngle` (e.g., $20^\circ$) at plunge feed rate `feedZ`, before executing 2D planar clearing at feed rate `feedXY`.
+
+---
+
+### 3.5 Rule 5: Outer Profile Cutout Pass
+
+* **Base Part Boundary ($\Omega_{\text{base}}$)**: The shape with the lowest extrusion height $h_{\text{base}}$ (or the outermost boundary shape at $h_{\text{base}}$) defines the finished 2D perimeter of the part.
+* **Cutout Z-Range**: The profile cutout operation runs from $Z = h_{\text{base}}$ down to the machine table surface $Z = 0.0\,\text{mm}$.
+* **Toolpath Offsetting**:
+  * Tool centerline is offset outward from $\partial \Omega_{\text{base}}$ by $+R_{\text{tool}}$ so the cutter edge touches the outer perimeter.
+  * The profile is stepped down axially in increments of $\Delta Z$ from $Z = h_{\text{base}}$ down to $Z = 0.0\,\text{mm}$.
+* **No Pocket Clearing**: Below $Z = h_{\text{base}}$, no pocket clearing is performed—only the continuous 2D outer profile contour path is executed down to $Z = 0.0\,\text{mm}$.
+
+---
+
+## 4. Case Study: `rounded-large.bcam`
 
 Applying this specification to `examples/rounded-large.bcam`:
 
 ### Setup & Stock Parameters
-* Material Top Height $H_{\text{mat}} = 10.0\,\text{mm}$
-* Tool Diameter $D_{\text{tool}} = 2.0\,\text{mm}$ ($R_{\text{tool}} = 1.0\,\text{mm}$)
-* Stepover $S\% = 70\%$ ($1.4\,\text{mm}$ stepover, $0.6\,\text{mm}$ outer boundary extension)
+* **Material Stock Top Height ($H_{\text{mat}}$)**: $10.0\,\text{mm}$
+* **Tool Diameter ($D_{\text{tool}}$)**: $2.0\,\text{mm}$ ($R_{\text{tool}} = 1.0\,\text{mm}$)
+* **Stepover ($S\%$)**: $70\%$ ($w_{\text{step}} = 1.4\,\text{mm}$, $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$)
+* **Axial Stepdown ($\Delta Z$)**: $1.0\,\text{mm}$
 
-### Geometry Analysis
+### Part Geometry Breakdown
 ```
        Z = 10.0 mm (Material Top)
-       +---------------+   <- Shape 2 (Tower, height = 10mm)
+       +---------------+   <- Shape 2 (Tower, h2 = 10.0 mm)
        |    Shape 2    |
        |  (h = 10mm)   |
-  +----+---------------+----+   <- Step level Z = 5.0 mm (Shape 1, Base Platform)
+  +----+---------------+----+   <- Step Level Z = 5.0 mm (Shape 1, Base Platform)
   |      Cleared Step       |
   |       (h = 5mm)         |
 ==+=========================+== <- Machine Bed / Table (Z = 0.0 mm)
 ```
 
-1. **Shape 2** (Inner Contour, Entities 4–7, Height $h_2 = 10.0\,\text{mm}$):
-   * Extrudes from $Z = 0$ up to $Z = 10.0\,\text{mm}$.
+1. **Shape 2** ($\Omega_2$, Entities 4–7, Height $h_2 = 10.0\,\text{mm}$):
+   * Solid feature extruded from $Z = 0.0$ to $Z = 10.0\,\text{mm}$.
    * Matches $H_{\text{mat}} \implies$ **Zero top clearing**.
-   * Serves as the **inner island boundary** for the step clearing pass.
+   * Serves as the standing obstacle $\Omega_{\text{above}}$ for the step clearing operation in $Z \in (5.0, 10.0]\,\text{mm}$.
 
-2. **Shape 1** (Outer Boundary, Entities 0–3, Height $h_1 = 5.0\,\text{mm}$):
-   * Extrudes from $Z = 0$ up to $Z = 5.0\,\text{mm}$.
-   * The region between Shape 2 (inner island) and Shape 1 (outer boundary $+ 0.6\,\text{mm}$ stepover extension) is cleared from $Z = 10.0\,\text{mm}$ down to $Z = 5.0\,\text{mm}$.
+2. **Shape 1** ($\Omega_1$, Entities 0–3, Height $h_1 = 5.0\,\text{mm}$):
+   * Base platform extruded from $Z = 0.0$ to $Z = 5.0\,\text{mm}$.
+   * **Step Region Clearing ($Z = 10.0 \to Z = 5.0\,\text{mm}$)**:
+     $$\Omega_{\text{clear}} = \Omega_1 \setminus \Omega_2$$
+     * Tool centerline domain $\mathcal{D}_{\text{centerline}}$ expands open outer edges of $\Omega_1$ by $\Delta r_{\text{overrun}} = 0.6\,\text{mm}$, clipped strictly against $\Omega_2 \oplus \mathcal{B}_{1.0\,\text{mm}}$.
+     * Cleared in 5 axial passes ($Z = 9.0, 8.0, 7.0, 6.0, 5.0\,\text{mm}$) with concentric pocket loops spaced at $w_{\text{step}} = 1.4\,\text{mm}$.
 
-3. **Part Cutout Pass**:
-   * Below $Z = 5.0\,\text{mm}$, the tool cuts along the outer perimeter of Shape 1 (offset outward by $R_{\text{tool}} = 1.0\,\text{mm}$) from $Z = 5.0\,\text{mm}$ down to $Z = 0.0\,\text{mm}$ to detach the completed part from the stock block.
-
----
-
-## 4. Architectural Requirements for Toolpath Generation
-
-To support this 3D part paradigm correctly, the CAM engine must execute the following pipeline:
-
-1. **Height-Sorted Shape Hierarchy**:
-   * Sort all shapes in a part by their height $h$ in descending order: $h_1 > h_2 > \dots > h_k$.
-   * Group shapes into discrete $Z$-height levels.
-
-2. **Step Region Calculation**:
-   * For each height transition from level $Z_{\text{upper}}$ down to level $Z_{\text{lower}}$:
-     * Construct the clearing domain as:
-       $$\text{Domain} = \text{Boundary}(S_{\text{lower}}) \setminus \text{Boundary}(S_{\text{upper}})$$
-     * Expand the outer boundary of $S_{\text{lower}}$ by $(100\% - S\%) \cdot D_{\text{tool}}$ to guarantee edge stepover clearance.
-     * Generate pocket clearing toolpaths within this domain for $Z \in [Z_{\text{lower}}, Z_{\text{upper}}]$.
-
-3. **Cutout Pass Generation**:
-   * For the outermost boundary shape at $Z = h_{\text{base}}$, generate an outer profile contour path offset by $+R_{\text{tool}}$ running from $Z = h_{\text{base}}$ down to $Z = 0.0\,\text{mm}$.
+3. **Part Cutout Pass ($Z = 5.0 \to Z = 0.0\,\text{mm}$)**:
+   * Outer perimeter profile of $\Omega_1$ offset outward by $+R_{\text{tool}} = 1.0\,\text{mm}$.
+   * Stepped down axially in 5 passes ($Z = 4.0, 3.0, 2.0, 1.0, 0.0\,\text{mm}$) to cut the part out from the stock block.
 
 ---
 
-## 5. Handling Containment Hierarchy Violations
+## 5. Handling Hierarchy Violations (Containment Warnings)
 
 ### Validation & Non-Blocking Warning Policy
-Before generating toolpaths, the CAM engine validates the containment hierarchy between shapes at adjacent $Z$-height levels:
-$$\text{Footprint}(S_{\text{tall}}) \subseteq \text{Footprint}(S_{\text{short}})$$
+Before toolpath generation, the CAM engine validates the topological containment hierarchy between shapes at adjacent $Z$-height levels (e.g., verifying $\Omega_{\text{island}} \subset \text{Int}(\Omega_{\text{shelf}})$ for bosses or $\Omega_{\text{floor}} \subset \text{Int}(\Omega_{\text{wall}})$ for pockets).
 
-If a taller shape $S_{\text{tall}}$ extends outside the boundary of its supporting base shape $S_{\text{short}}$:
+If a taller shape $S_{\text{tall}}$ extends outside its supporting base shape $S_{\text{short}}$:
 
-1. **Warning Diagnostic**:
-   * **GUI Mode**: Display a warning message in the status log / message dialog highlighting the violating shape:
-     `"Warning: Shape X (h=10.0mm) extends outside base Shape Y (h=5.0mm). G-code will be generated, but toolpaths may result in un-supported geometry."`
-   * **CLI Mode**: Output a warning message to `std::cerr` detailing the shape violation.
-   * **G-Code Header Comment**: Embed a warning comment near the top of the exported `.cnc` file:
+1. **Warning Diagnostics**:
+   * **GUI Mode**: Appends a prominent warning message to the status text log / message dialog:
+     `"Warning: Shape X (h=10.0mm) extends outside base Shape Y (h=5.0mm). G-code will be generated, but toolpaths may result in unsupported geometry."`
+   * **CLI Mode**: Prints a diagnostic warning message to `std::cerr`.
+   * **G-Code Comment Header**: Embeds a formal warning header near the top of the exported `.cnc` file:
      `( WARNING: Containment hierarchy violation detected - Shape X (h=10.0mm) extends outside base Shape Y (h=5.0mm) )`
 
 2. **Non-Blocking G-Code Output**:
    * The CAM engine **does not abort** G-code generation.
-   * Toolpaths are generated using best-effort geometric domain calculations so the `.cnc` file is produced regardless, allowing the user to inspect, simulate, or run the toolpath.
+   * Toolpaths are produced using best-effort geometric 2D domain calculations (clipping against available stock boundaries) so the `.cnc` file is written for inspection, simulation, or machining.
