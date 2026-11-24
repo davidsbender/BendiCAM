@@ -71,27 +71,32 @@
   "parts": [
     {
       "id": 1,
-      "name": "Part 1 (4 shape(s))",
+      "name": "Part 1 (5 shape(s))",
       "shapes": [
         {
           "shapeId": 1,
           "depth": 4,
-          "entityIndices": [236]
+          "entityIndices": [240]
         },
         {
           "shapeId": 2,
-          "depth": 6,
-          "entityIndices": [235]
+          "depth": 10,
+          "entityIndices": [241]
         },
         {
           "shapeId": 3,
-          "depth": 8,
-          "entityIndices": [234]
+          "depth": 6,
+          "entityIndices": [239]
         },
         {
           "shapeId": 4,
+          "depth": 8,
+          "entityIndices": [238]
+        },
+        {
+          "shapeId": 5,
           "depth": 10,
-          "entityIndices": [233]
+          "entityIndices": [237]
         }
       ]
     }

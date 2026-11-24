@@ -1624,7 +1624,11 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
             ShapeFillItem item;
             item.depth = shape.depth;
             wxColour depthCol = getDepthColor(shape.depth, minDepth, maxDepth);
-            item.fillCol = wxColour(depthCol.Red(), depthCol.Green(), depthCol.Blue(), 160);
+            double lightenFactor = 0.45;
+            unsigned char r = (unsigned char)(depthCol.Red()   + (255 - depthCol.Red())   * lightenFactor);
+            unsigned char g = (unsigned char)(depthCol.Green() + (255 - depthCol.Green()) * lightenFactor);
+            unsigned char b = (unsigned char)(depthCol.Blue()  + (255 - depthCol.Blue())  * lightenFactor);
+            item.fillCol = wxColour(r, g, b, 255);
 
             auto paths = getShapeClosedPaths(shape);
             for (const auto& pathPts : paths) {
@@ -1738,218 +1742,22 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         if (TextCtrlToolOvercut) TextCtrlToolOvercut->GetValue().ToDouble(&overcutPercent);
         if (toolDiameter <= 1e-4) toolDiameter = 2.0;
         if (overcutPercent < 0.0) overcutPercent = 30.0;
-        double toolRadius = toolDiameter * 0.5;
 
-        // Data structure containing the 7 paths for the selected shape / lower shape
-        struct SelectedShapeProcessingPaths {
-            std::vector<AnalyticalPath> shapeOutline;
-            std::vector<AnalyticalPath> shapeToolPath;
-            std::vector<AnalyticalPath> shapeCutZone;
-            std::vector<AnalyticalPath> materialOutline;       // empty if no lower shape
-            std::vector<AnalyticalPath> materialCutZoneInner;  // empty if no lower shape
-            std::vector<AnalyticalPath> materialToolPath;      // empty if no lower shape
-            std::vector<AnalyticalPath> materialCutZoneOuter;  // empty if no lower shape
-        };
-
-        SelectedShapeProcessingPaths procPaths;
+        m_procPaths = SelectedShapeProcessingPaths();
 
         if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
             const auto& part = m_parts[m_selectedPartIndex];
             int shapeIdx = (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)part.shapes.size()) ? m_selectedShapeInPartIndex : 0;
             if (!part.shapes.empty() && shapeIdx >= 0 && shapeIdx < (int)part.shapes.size()) {
-                const auto& selShape = part.shapes[shapeIdx];
-                double selDepth = selShape.depth;
-                auto selAnalyticalPaths = getShapeAnalyticalPaths(selShape);
+                m_procPaths = computeSelectedShapeProcessingPaths(m_dxfModel, part, shapeIdx, toolDiameter, overcutPercent);
 
-                for (const auto& path : selAnalyticalPaths) {
-                    AnalyticalPath loop = path;
-                    ensureLoopOrientation(loop, true);
-                    procPaths.shapeOutline.push_back(loop);
-
-                    auto tPaths = offsetAnalyticalPath(loop, -toolRadius);
-                    for (auto tp : tPaths) { ensureLoopOrientation(tp, true); procPaths.shapeToolPath.push_back(tp); }
-
-                    auto cPaths = offsetAnalyticalPath(loop, -toolDiameter);
-                    for (auto cp : cPaths) { ensureLoopOrientation(cp, true); procPaths.shapeCutZone.push_back(cp); }
-                }
-
-                // Find shape below
-                const CamShape* shapeBelow = nullptr;
-                double maxBelowDepth = -1.0;
-                std::vector<DxfPoint> selSamplePts;
-                for (const auto& sp : selAnalyticalPaths) {
-                    auto pts = sampleAnalyticalPath(sp, 0.5);
-                    selSamplePts.insert(selSamplePts.end(), pts.begin(), pts.end());
-                }
-
-                for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
-                    if ((int)sIdx == shapeIdx) continue;
-                    const auto& candidateShape = part.shapes[sIdx];
-                    if (candidateShape.depth < selDepth - 1e-4) {
-                        auto candPaths = getShapeAnalyticalPaths(candidateShape);
-                        bool surrounds = false;
-                        if (!selSamplePts.empty() && !candPaths.empty()) {
-                            int insideCount = 0;
-                            for (const auto& pt : selSamplePts) {
-                                for (const auto& cPath : candPaths) {
-                                    if (isPointInsideAnalyticalPath(pt, cPath)) { insideCount++; break; }
-                                }
-                            }
-                            if ((double)insideCount / selSamplePts.size() > 0.5) surrounds = true;
-                        }
-                        if (surrounds) {
-                            if (shapeBelow == nullptr || candidateShape.depth > maxBelowDepth) {
-                                shapeBelow = &candidateShape;
-                                maxBelowDepth = candidateShape.depth;
-                            }
-                        }
-                    }
-                }
-
-                if (!shapeBelow) {
-                    for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
-                        if ((int)sIdx == shapeIdx) continue;
-                        const auto& candidateShape = part.shapes[sIdx];
-                        if (candidateShape.depth < selDepth - 1e-4) {
-                            if (shapeBelow == nullptr || candidateShape.depth > maxBelowDepth) {
-                                shapeBelow = &candidateShape;
-                                maxBelowDepth = candidateShape.depth;
-                            }
-                        }
-                    }
-                }
-
-                if (shapeBelow != nullptr) {
-                    auto belowPaths = getShapeAnalyticalPaths(*shapeBelow);
-                    double expansionFactor = (overcutPercent / 100.0) - 0.5;
-                    double expansionDist = expansionFactor * toolDiameter;
-                    // Positive expansion = outward = negative distance in offsetAnalyticalPath / offsetAnalyticalPathRaw
-                    // Negative expansion = reduction = inward = positive distance in offsetAnalyticalPath / offsetAnalyticalPathRaw
-                    double offsetDist = -expansionDist;
-
-                    for (const auto& bPath : belowPaths) {
-                        AnalyticalPath bLoop = bPath;
-                        ensureLoopOrientation(bLoop, true);
-                        procPaths.materialOutline.push_back(bLoop);
-
-                        // MaterialToolPath is MaterialOutline reduced or expanded by offsetDist.
-                        AnalyticalPath rawToolPath = offsetAnalyticalPathRaw(bLoop, offsetDist);
-                        if (rawToolPath.size() >= 2) {
-                            AnalyticalPath cleanTpUnspurred = cleanDegeneratePrimitives(rawToolPath);
-                            if (cleanTpUnspurred.size() >= 2) {
-                                AnalyticalPath cleanTp = cleanTpUnspurred;
-                                std::vector<std::pair<DxfPoint, DxfPoint>> spursAtCorners; // stores (vertexPt, apexPt)
-
-                                // If overcutPercent < 50%, add out-and-back bisector spurs at concave corners
-                                if (overcutPercent < 50.0) {
-                                    double spurDist = (0.5 - (overcutPercent / 100.0)) * toolDiameter;
-                                    if (spurDist > 1e-4) {
-                                        AnalyticalPath spurredPath;
-                                        size_t numPrims = cleanTpUnspurred.size();
-                                        for (size_t i = 0; i < numPrims; ++i) {
-                                            const auto& prim1 = cleanTpUnspurred[i];
-                                            const auto& prim2 = cleanTpUnspurred[(i + 1) % numPrims];
-                                            spurredPath.push_back(prim1);
-
-                                            DxfPoint t1 = getPrimitiveEndTangent(prim1);
-                                            DxfPoint t2 = getPrimitiveStartTangent(prim2);
-                                            double crossZ = t1.x * t2.y - t1.y * t2.x;
-                                            double dot = t1.x * t2.x + t1.y * t2.y;
-                                            double angleTurn = std::atan2(crossZ, dot);
-
-                                            if (angleTurn > 1e-3) {
-                                                DxfPoint vertexPt = prim1.endPt;
-                                                DxfPoint n1(-t1.y, t1.x); // inward normal of prim1
-                                                DxfPoint n2(-t2.y, t2.x); // inward normal of prim2
-
-                                                double nx = -n1.x - n2.x;
-                                                double ny = -n1.y - n2.y;
-                                                double nLen = std::hypot(nx, ny);
-                                                if (nLen > 1e-6) {
-                                                    nx /= nLen;
-                                                    ny /= nLen;
-
-                                                    double halfAngle = angleTurn * 0.5;
-                                                    double cosHalf = std::cos(halfAngle);
-
-                                                    if (cosHalf > 0.05) {
-                                                        double spurTravelLen = spurDist * ((1.0 / cosHalf) - 1.0);
-
-                                                        if (spurTravelLen > 1e-4) {
-                                                            DxfPoint apexPt(vertexPt.x + nx * spurTravelLen,
-                                                                           vertexPt.y + ny * spurTravelLen);
-
-                                                            PathPrimitive s1 = PathPrimitive::CreateLine(vertexPt, apexPt);
-                                                            PathPrimitive s2 = PathPrimitive::CreateLine(apexPt, vertexPt);
-                                                            s1.isSpur = true;
-                                                            s2.isSpur = true;
-                                                            spurredPath.push_back(s1);
-                                                            spurredPath.push_back(s2);
-
-                                                            spursAtCorners.push_back({vertexPt, apexPt});
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        cleanTp = cleanDegeneratePrimitives(spurredPath);
-                                    }
-                                }
-
-                                ensureLoopOrientation(cleanTp, true);
-                                procPaths.materialToolPath.push_back(cleanTp);
-
-                                // MaterialCutZoneInner is the inward offset of the un-spurred toolpath
-                                auto innerPaths = offsetAnalyticalPath(cleanTpUnspurred, toolRadius);
-                                for (auto inPath : innerPaths) {
-                                    ensureLoopOrientation(inPath, true);
-                                    procPaths.materialCutZoneInner.push_back(inPath);
-                                }
-
-                                // MaterialCutZoneOuter: base outward-expanded loop from un-spurred path
-                                double toolRadius = toolDiameter * 0.5;
-                                auto baseOuterPaths = offsetAnalyticalPath(cleanTpUnspurred, -toolRadius);
-
-                                // If overcutPercent < 50% and spurs exist, we update corner arcs at apex A
-                                if (overcutPercent < 50.0 && !spursAtCorners.empty() && !baseOuterPaths.empty()) {
-                                    for (auto& outPath : baseOuterPaths) {
-                                        // For each corner where a spur was generated with apex A:
-                                        // We can update the primitives in outPath.
-                                        // Specifically, check if any arc/vertex corresponds to the corner.
-                                        // Alternatively, since baseOuterPaths contains primitives, let's inspect and replace roll-around arcs centered at vertexPt with arcs centered at apexPt of radius toolRadius.
-                                        for (auto& prim : outPath) {
-                                            if (prim.type == PrimitiveType::ARC && prim.radius > 1e-6) {
-                                                // Check if prim.center is close to any vertexPt where a spur exists
-                                                for (const auto& sp : spursAtCorners) {
-                                                    const DxfPoint& vPt = sp.first;
-                                                    const DxfPoint& aPt = sp.second;
-                                                    double dCenter = std::hypot(prim.center.x - vPt.x, prim.center.y - vPt.y);
-                                                    if (dCenter < 1.0) {
-                                                        // Replace center with apexPt, and recompute startPt and endPt intersection with incoming/outgoing lines.
-                                                        prim.center = aPt;
-                                                        // Ensure radius is toolRadius
-                                                        prim.radius = toolRadius;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                for (auto outPath : baseOuterPaths) {
-                                    ensureLoopOrientation(outPath, true);
-                                    procPaths.materialCutZoneOuter.push_back(outPath);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Render the 7 paths
+                // Render the paths and their vertices
                 std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
                 if (gc) {
-                    wxColour colAmber(230, 100, 0); // Dark amber
-                    wxColour colBlue(0, 0, 180);    // Dark blue
+                    wxColour colAmber(230, 100, 0);       // Dark amber
+                    wxColour colBlue(0, 0, 180);          // Dark blue
+                    wxColour colBrightAmber(255, 175, 40); // Bright amber (islands)
+                    wxColour colBrightBlue(65, 130, 245);  // Bright blue (islands toolpath)
 
                     auto drawPaths = [&](const std::vector<AnalyticalPath>& paths, const wxColour& col, bool dashed) {
                         gc->SetPen(wxPen(col, 2, dashed ? wxPENSTYLE_SHORT_DASH : wxPENSTYLE_SOLID));
@@ -1968,13 +1776,53 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                         }
                     };
 
-                    drawPaths(procPaths.shapeOutline, colAmber, true);          // 1. ShapeOutline
-                    drawPaths(procPaths.shapeToolPath, colBlue, true);          // 2. ShapeToolPath
-                    drawPaths(procPaths.shapeCutZone, colAmber, true);          // 3. ShapeCutZone
-                    drawPaths(procPaths.materialOutline, colAmber, true);       // 4. MaterialOutline
-                    drawPaths(procPaths.materialCutZoneInner, colAmber, true);  // 5. MaterialCutZoneInner
-                    drawPaths(procPaths.materialToolPath, colBlue, true);       // 6. MaterialToolPath
-                    drawPaths(procPaths.materialCutZoneOuter, colAmber, true);  // 7. MaterialCutZoneOuter
+                    auto drawVertices = [&](const std::vector<AnalyticalPath>& paths, const wxColour& strokeCol) {
+                        double r = 2.5; // vertex dot radius
+                        gc->SetBrush(*wxWHITE_BRUSH);
+                        gc->SetPen(wxPen(strokeCol, 1.5));
+                        for (const auto& path : paths) {
+                            for (const auto& prim : path) {
+                                wxPoint p = ToScreen(prim.startPt.x, prim.startPt.y);
+                                gc->DrawEllipse(p.x - r, p.y - r, 2.0 * r, 2.0 * r);
+                            }
+                        }
+                    };
+
+                    // 1. Main selected shape paths
+                    drawPaths(m_procPaths.shape.shapeOutline, colAmber, true);          // 1. ShapeOutline
+                    drawPaths(m_procPaths.shape.shapeToolPath, colBlue, true);          // 2. ShapeToolPath
+                    drawPaths(m_procPaths.shape.shapeCutZone, colAmber, true);          // 3. ShapeCutZone
+
+                    // 2. Material (lower shape) paths
+                    drawPaths(m_procPaths.materialOutline, colAmber, true);       // 4. MaterialOutline
+                    drawPaths(m_procPaths.materialCutZoneInner, colAmber, true);  // 5. MaterialCutZoneInner
+                    drawPaths(m_procPaths.materialToolPath, colBlue, true);       // 6. MaterialToolPath
+                    drawPaths(m_procPaths.materialCutZoneOuter, colAmber, true);  // 7. MaterialCutZoneOuter
+
+                    // 3. Island shapes paths (brighter dashed line to make main shape and material more prominent)
+                    for (const auto& island : m_procPaths.islandShapes) {
+                        drawPaths(island.shapeOutline, colBrightAmber, true);
+                        drawPaths(island.shapeToolPath, colBrightBlue, true);
+                        drawPaths(island.shapeCutZone, colBrightAmber, true);
+                    }
+
+                    // Vertices for main selected shape paths
+                    drawVertices(m_procPaths.shape.shapeOutline, colAmber);
+                    drawVertices(m_procPaths.shape.shapeToolPath, colBlue);
+                    drawVertices(m_procPaths.shape.shapeCutZone, colAmber);
+
+                    // Vertices for material paths
+                    drawVertices(m_procPaths.materialOutline, colAmber);
+                    drawVertices(m_procPaths.materialCutZoneInner, colAmber);
+                    drawVertices(m_procPaths.materialToolPath, colBlue);
+                    drawVertices(m_procPaths.materialCutZoneOuter, colAmber);
+
+                    // Vertices for island shapes paths
+                    for (const auto& island : m_procPaths.islandShapes) {
+                        drawVertices(island.shapeOutline, colBrightAmber);
+                        drawVertices(island.shapeToolPath, colBrightBlue);
+                        drawVertices(island.shapeCutZone, colBrightAmber);
+                    }
                 }
             }
         }

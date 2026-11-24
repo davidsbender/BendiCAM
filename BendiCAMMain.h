@@ -237,6 +237,7 @@ class BendiCAMFrame: public wxFrame
         int m_selectedPartIndex = -1;
         int m_selectedShapeInPartIndex = -1;
         int m_nextPartId = 1;
+        SelectedShapeProcessingPaths m_procPaths;
 
         DxfModel m_dxfModel;
         PHIDP_PREPARSED_DATA preparsedData = nullptr;

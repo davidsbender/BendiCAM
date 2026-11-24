@@ -72,6 +72,21 @@ struct PathPrimitive {
 
 using AnalyticalPath = std::vector<PathPrimitive>;
 
+struct ShapeFeaturePaths {
+    std::vector<AnalyticalPath> shapeOutline;
+    std::vector<AnalyticalPath> shapeToolPath;
+    std::vector<AnalyticalPath> shapeCutZone;
+};
+
+struct SelectedShapeProcessingPaths {
+    ShapeFeaturePaths shape;
+    std::vector<AnalyticalPath> materialOutline;       // empty if no lower shape
+    std::vector<AnalyticalPath> materialCutZoneInner;  // empty if no lower shape
+    std::vector<AnalyticalPath> materialToolPath;      // empty if no lower shape
+    std::vector<AnalyticalPath> materialCutZoneOuter;  // empty if no lower shape
+    std::vector<ShapeFeaturePaths> islandShapes;       // empty if no island shapes
+};
+
 // Geometry & Utility Functions
 double getPrimitiveLength(const PathPrimitive& prim);
 double getPathLength(const AnalyticalPath& path);
@@ -117,6 +132,15 @@ HierarchyValidationResult validatePartHierarchy(const DxfModel& model, const std
 std::vector<HeightBand> computePartHeightBands(const std::vector<CamShape>& shapes, double topHeight);
 std::vector<AnalyticalPath> generateBandClearingLoops(const DxfModel& model, const std::vector<CamShape>& shapes, double zUpper, double zFloor, double topHeight, double toolDiameter, double stepoverPercent);
 std::vector<AnalyticalPath> generateOuterCutoutPaths(const DxfModel& model, const std::vector<CamShape>& shapes, double toolDiameter);
+
+std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const CamShape& shape);
+
+SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
+    const DxfModel& model,
+    const CamPart& part,
+    int selectedShapeIdx,
+    double toolDiameter,
+    double overcutPercent);
 
 void emitAnalyticalLoopGCode(std::ofstream& out, const AnalyticalPath& path,
                             double prevZ, double curZ, double feedZ, double feedXY, double retractZ,
