@@ -81,6 +81,68 @@ double getAnalyticalPathArea(const AnalyticalPath& path) {
     return area * 0.5;
 }
 
+static inline uint64_t fnv1a64(const void* data, size_t bytes, uint64_t seed = 14695981039346656037ULL) {
+    const uint8_t* ptr = static_cast<const uint8_t*>(data);
+    uint64_t h = seed;
+    for (size_t i = 0; i < bytes; ++i) {
+        h ^= ptr[i];
+        h *= 1099511628211ULL;
+    }
+    return h;
+}
+
+uint64_t computeEntityHash(const std::vector<size_t>& entityIndices) {
+    if (entityIndices.empty()) return 0;
+    std::vector<size_t> sorted = entityIndices;
+    std::sort(sorted.begin(), sorted.end());
+    return fnv1a64(sorted.data(), sorted.size() * sizeof(size_t));
+}
+
+uint64_t computeEntitySignature(uint64_t entityHash, double offsetDistMm) {
+    if (entityHash == 0) return 0;
+    int64_t offsetMicrons = static_cast<int64_t>(std::round(offsetDistMm * 1000.0));
+    uint64_t h = fnv1a64(&entityHash, sizeof(entityHash));
+    return fnv1a64(&offsetMicrons, sizeof(offsetMicrons), h);
+}
+
+uint64_t computeGeometrySignature(const AnalyticalPath& path) {
+    if (path.empty()) return 0;
+    double area = std::abs(getAnalyticalPathArea(path));
+    int64_t qArea = static_cast<int64_t>(std::round(area * 100.0)); // 0.01 mm^2
+
+    double perim = getPathLength(path);
+    int64_t qPerim = static_cast<int64_t>(std::round(perim * 1000.0)); // 0.001 mm
+
+    auto pts = sampleAnalyticalPath(path, 0.5);
+    if (pts.empty()) return 0;
+
+    double sumX = 0.0, sumY = 0.0;
+    double minX = pts[0].x, maxX = pts[0].x;
+    double minY = pts[0].y, maxY = pts[0].y;
+
+    for (const auto& pt : pts) {
+        sumX += pt.x;
+        sumY += pt.y;
+        if (pt.x < minX) minX = pt.x;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.y > maxY) maxY = pt.y;
+    }
+
+    double cx = sumX / pts.size();
+    double cy = sumY / pts.size();
+
+    int64_t qCx = static_cast<int64_t>(std::round(cx * 1000.0));
+    int64_t qCy = static_cast<int64_t>(std::round(cy * 1000.0));
+    int64_t qMinX = static_cast<int64_t>(std::round(minX * 1000.0));
+    int64_t qMinY = static_cast<int64_t>(std::round(minY * 1000.0));
+    int64_t qMaxX = static_cast<int64_t>(std::round(maxX * 1000.0));
+    int64_t qMaxY = static_cast<int64_t>(std::round(maxY * 1000.0));
+
+    int64_t moments[8] = { qArea, qPerim, qCx, qCy, qMinX, qMinY, qMaxX, qMaxY };
+    return fnv1a64(moments, sizeof(moments));
+}
+
 void ensureLoopOrientation(AnalyticalPath& path, bool targetCCW) {
     double area = getAnalyticalPathArea(path);
     if (std::abs(area) < 1e-6) return;
@@ -128,6 +190,7 @@ PathPrimitive reversePrimitive(const PathPrimitive& prim) {
 
 AnalyticalPath reverseAnalyticalPath(const AnalyticalPath& path) {
     AnalyticalPath rev;
+    rev.trace = path.trace;
     rev.reserve(path.size());
     for (auto it = path.rbegin(); it != path.rend(); ++it) {
         rev.push_back(reversePrimitive(*it));
@@ -175,6 +238,7 @@ std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const
     struct ChainInternal {
         AnalyticalPath primitives;
         bool isClosed = false;
+        std::vector<size_t> entityIndices;
     };
 
     std::vector<ChainInternal> rawChains;
@@ -186,6 +250,7 @@ std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const
         if (layer && !layer->visible) continue;
 
         ChainInternal chain;
+        chain.entityIndices.push_back(idx);
 
         if (entity.type == DxfEntityType::LINE && entity.points.size() >= 2) {
             chain.primitives.push_back(PathPrimitive::CreateLine(entity.points[0], entity.points[1]));
@@ -263,7 +328,13 @@ std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const
     for (auto& c : rawChains) {
         if (c.isClosed) {
             ensureLoopOrientation(c.primitives, true); // Normalize to CCW
-            closedResult.push_back(c.primitives);
+            AnalyticalPath loop = c.primitives;
+            loop.trace.entityHash = computeEntityHash(c.entityIndices);
+            loop.trace.offsetDistance = 0.0;
+            loop.trace.role = PathRole::RAW_SHAPE;
+            loop.trace.entitySignature = computeEntitySignature(loop.trace.entityHash, 0.0);
+            loop.trace.geometrySignature = computeGeometrySignature(loop);
+            closedResult.push_back(loop);
         } else {
             openChains.push_back(c);
         }
@@ -287,23 +358,27 @@ std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const
 
                 if (d1 < tol) {
                     current.primitives.insert(current.primitives.end(), candidate.primitives.begin(), candidate.primitives.end());
+                    current.entityIndices.insert(current.entityIndices.end(), candidate.entityIndices.begin(), candidate.entityIndices.end());
                     openChains.erase(openChains.begin() + i);
                     joined = true;
                     break;
                 } else if (d2 < tol) {
                     auto rev = reverseAnalyticalPath(candidate.primitives);
                     current.primitives.insert(current.primitives.end(), rev.begin(), rev.end());
+                    current.entityIndices.insert(current.entityIndices.end(), candidate.entityIndices.begin(), candidate.entityIndices.end());
                     openChains.erase(openChains.begin() + i);
                     joined = true;
                     break;
                 } else if (d3 < tol) {
                     current.primitives.insert(current.primitives.begin(), candidate.primitives.begin(), candidate.primitives.end());
+                    current.entityIndices.insert(current.entityIndices.end(), candidate.entityIndices.begin(), candidate.entityIndices.end());
                     openChains.erase(openChains.begin() + i);
                     joined = true;
                     break;
                 } else if (d4 < tol) {
                     auto rev = reverseAnalyticalPath(candidate.primitives);
                     current.primitives.insert(current.primitives.begin(), rev.begin(), rev.end());
+                    current.entityIndices.insert(current.entityIndices.end(), candidate.entityIndices.begin(), candidate.entityIndices.end());
                     openChains.erase(openChains.begin() + i);
                     joined = true;
                     break;
@@ -321,7 +396,13 @@ std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const
 
         if (current.isClosed) {
             ensureLoopOrientation(current.primitives, true); // Normalize to CCW
-            closedResult.push_back(current.primitives);
+            AnalyticalPath loop = current.primitives;
+            loop.trace.entityHash = computeEntityHash(current.entityIndices);
+            loop.trace.offsetDistance = 0.0;
+            loop.trace.role = PathRole::RAW_SHAPE;
+            loop.trace.entitySignature = computeEntitySignature(loop.trace.entityHash, 0.0);
+            loop.trace.geometrySignature = computeGeometrySignature(loop);
+            closedResult.push_back(loop);
         }
     }
 
@@ -408,6 +489,7 @@ static bool isDegeneratePrimitive(const PathPrimitive& prim) {
 AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path) {
     if (path.empty()) return path;
     AnalyticalPath cleaned;
+    cleaned.trace = path.trace;
     cleaned.reserve(path.size());
 
     for (const auto& prim : path) {
@@ -759,6 +841,9 @@ static bool isIntersectionWithinBounds(const PathPrimitive& p1, const PathPrimit
 
 AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist) {
     AnalyticalPath rawOffset;
+    rawOffset.trace = inPath.trace;
+    rawOffset.trace.offsetDistance = inPath.trace.offsetDistance + dist;
+    rawOffset.trace.entitySignature = computeEntitySignature(rawOffset.trace.entityHash, rawOffset.trace.offsetDistance);
     if (inPath.size() < 2) return rawOffset;
 
     AnalyticalPath path = inPath;
@@ -845,6 +930,7 @@ AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist
         }
     }
 
+    rawOffset.trace.geometrySignature = computeGeometrySignature(rawOffset);
     return rawOffset;
 }
 
@@ -852,7 +938,12 @@ std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& inPath, d
     AnalyticalPath rawOffset = offsetAnalyticalPathRaw(inPath, dist);
     if (rawOffset.size() < 2) return std::vector<AnalyticalPath>();
     bool isOutward = (dist < 0.0);
-    return pruneSelfIntersectionsAndSplit(rawOffset, &inPath, std::abs(dist), isOutward);
+    auto results = pruneSelfIntersectionsAndSplit(rawOffset, &inPath, std::abs(dist), isOutward);
+    for (auto& r : results) {
+        r.trace = rawOffset.trace;
+        r.trace.geometrySignature = computeGeometrySignature(r);
+    }
+    return results;
 }
 
 std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath& path, const AnalyticalPath* parentBoundary, double distFromParent, bool isOutward) {
@@ -898,6 +989,7 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
                 }
             }
             if (validLocation) {
+                cleanPath.trace.geometrySignature = computeGeometrySignature(cleanPath);
                 resultLoops.push_back(cleanPath);
             }
         }
@@ -906,6 +998,8 @@ std::vector<AnalyticalPath> pruneSelfIntersectionsAndSplit(const AnalyticalPath&
 
     // Split into 2 sub-loops
     AnalyticalPath loop1, loop2;
+    loop1.trace = cleanPath.trace;
+    loop2.trace = cleanPath.trace;
 
     for (size_t k = 0; k <= splitI; ++k) {
         loop1.push_back(cleanPath[k]);
@@ -950,7 +1044,9 @@ std::vector<AnalyticalPath> generatePocketRings(const AnalyticalPath& outerBound
         pass++;
         std::vector<AnalyticalPath> nextActiveLoops;
 
-        for (const auto& loop : activeLoops) {
+        for (auto& loop : activeLoops) {
+            loop.trace.role = PathRole::POCKET_RING;
+            loop.trace.geometrySignature = computeGeometrySignature(loop);
             allRings.push_back(loop);
 
             std::vector<AnalyticalPath> offsetRings = offsetAnalyticalPath(loop, +stepoverDist);
@@ -1321,12 +1417,15 @@ std::vector<AnalyticalPath> generateBandClearingLoops(
                     if (validPrims.empty()) continue;
 
                     AnalyticalPath sanitized = validPrims;
+                    sanitized.trace = loop.trace;
                     if (validPrims.size() < loop.size()) {
                         sanitized.push_back(PathPrimitive::CreateLine(validPrims.back().endPt, validPrims.front().startPt));
                         sanitized = cleanDegeneratePrimitives(sanitized);
                     }
 
                     if (sanitized.size() >= 2 && getAnalyticalPathArea(sanitized) > 1e-3) {
+                        sanitized.trace.role = PathRole::BAND_CLEARING;
+                        sanitized.trace.geometrySignature = computeGeometrySignature(sanitized);
                         clearingLoops.push_back(sanitized);
                     }
                 }
@@ -1362,6 +1461,11 @@ std::vector<AnalyticalPath> generateOuterCutoutPaths(
         auto outerContours = offsetAnalyticalPath(path, -toolRad);
         for (auto& c : outerContours) {
             ensureLoopOrientation(c, true);
+            c.trace.sourceShapeId = baseShape->shapeId;
+            c.trace.role = PathRole::OUTER_CUTOUT;
+            c.trace.offsetDistance = -toolRad;
+            c.trace.entitySignature = computeEntitySignature(c.trace.entityHash, -toolRad);
+            c.trace.geometrySignature = computeGeometrySignature(c);
             cutoutPaths.push_back(c);
         }
     }
@@ -1371,7 +1475,11 @@ std::vector<AnalyticalPath> generateOuterCutoutPaths(
 
 std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const CamShape& shape) {
     std::vector<size_t> indices(shape.entityIndices.begin(), shape.entityIndices.end());
-    return getShapeAnalyticalPaths(model, indices);
+    auto paths = getShapeAnalyticalPaths(model, indices);
+    for (auto& p : paths) {
+        p.trace.sourceShapeId = shape.shapeId;
+    }
+    return paths;
 }
 
 SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
@@ -1397,13 +1505,37 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
     for (const auto& path : selAnalyticalPaths) {
         AnalyticalPath loop = path;
         ensureLoopOrientation(loop, true);
+        loop.trace.sourcePartId = part.id;
+        loop.trace.sourceShapeId = selShape.shapeId;
+        loop.trace.role = PathRole::SHAPE_OUTLINE;
+        loop.trace.offsetDistance = 0.0;
+        loop.trace.entitySignature = computeEntitySignature(loop.trace.entityHash, 0.0);
+        loop.trace.geometrySignature = computeGeometrySignature(loop);
         procPaths.shape.shapeOutline.push_back(loop);
 
         auto tPaths = offsetAnalyticalPath(loop, -toolRadius);
-        for (auto tp : tPaths) { ensureLoopOrientation(tp, true); procPaths.shape.shapeToolPath.push_back(tp); }
+        for (auto tp : tPaths) {
+            ensureLoopOrientation(tp, true);
+            tp.trace.sourcePartId = part.id;
+            tp.trace.sourceShapeId = selShape.shapeId;
+            tp.trace.role = PathRole::SHAPE_TOOLPATH;
+            tp.trace.offsetDistance = -toolRadius;
+            tp.trace.entitySignature = computeEntitySignature(tp.trace.entityHash, -toolRadius);
+            tp.trace.geometrySignature = computeGeometrySignature(tp);
+            procPaths.shape.shapeToolPath.push_back(tp);
+        }
 
         auto cPaths = offsetAnalyticalPath(loop, -toolDiameter);
-        for (auto cp : cPaths) { ensureLoopOrientation(cp, true); procPaths.shape.shapeCutZone.push_back(cp); }
+        for (auto cp : cPaths) {
+            ensureLoopOrientation(cp, true);
+            cp.trace.sourcePartId = part.id;
+            cp.trace.sourceShapeId = selShape.shapeId;
+            cp.trace.role = PathRole::SHAPE_CUTZONE;
+            cp.trace.offsetDistance = -toolDiameter;
+            cp.trace.entitySignature = computeEntitySignature(cp.trace.entityHash, -toolDiameter);
+            cp.trace.geometrySignature = computeGeometrySignature(cp);
+            procPaths.shape.shapeCutZone.push_back(cp);
+        }
     }
 
     // Helper lambda to find the shape below a given target shape
@@ -1471,12 +1603,26 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
         for (const auto& bPath : belowPaths) {
             AnalyticalPath bLoop = bPath;
             ensureLoopOrientation(bLoop, true);
+            bLoop.trace.sourcePartId = part.id;
+            bLoop.trace.sourceShapeId = shapeBelow->shapeId;
+            bLoop.trace.role = PathRole::MATERIAL_OUTLINE;
+            bLoop.trace.offsetDistance = 0.0;
+            bLoop.trace.entitySignature = computeEntitySignature(bLoop.trace.entityHash, 0.0);
+            bLoop.trace.geometrySignature = computeGeometrySignature(bLoop);
             procPaths.materialOutline.push_back(bLoop);
 
             // MaterialToolPath is MaterialOutline reduced or expanded by offsetDist.
             AnalyticalPath rawToolPath = offsetAnalyticalPathRaw(bLoop, offsetDist);
             if (rawToolPath.size() >= 2) {
                 AnalyticalPath cleanTpUnspurred = cleanDegeneratePrimitives(rawToolPath);
+                cleanTpUnspurred.trace = rawToolPath.trace;
+                cleanTpUnspurred.trace.sourcePartId = part.id;
+                cleanTpUnspurred.trace.sourceShapeId = shapeBelow->shapeId;
+                cleanTpUnspurred.trace.role = PathRole::MATERIAL_TOOLPATH;
+                cleanTpUnspurred.trace.offsetDistance = offsetDist;
+                cleanTpUnspurred.trace.entitySignature = computeEntitySignature(cleanTpUnspurred.trace.entityHash, offsetDist);
+                cleanTpUnspurred.trace.geometrySignature = computeGeometrySignature(cleanTpUnspurred);
+
                 if (cleanTpUnspurred.size() >= 2) {
                     AnalyticalPath cleanTp = cleanTpUnspurred;
                     std::vector<std::pair<DxfPoint, DxfPoint>> spursAtCorners; // stores (vertexPt, apexPt)
@@ -1538,12 +1684,20 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
                     }
 
                     ensureLoopOrientation(cleanTp, true);
+                    cleanTp.trace = cleanTpUnspurred.trace;
+                    cleanTp.trace.geometrySignature = computeGeometrySignature(cleanTp);
                     procPaths.materialToolPath.push_back(cleanTp);
 
                     // MaterialCutZoneInner is the inward offset of the un-spurred toolpath
                     auto innerPaths = offsetAnalyticalPath(cleanTpUnspurred, toolRadius);
                     for (auto inPath : innerPaths) {
                         ensureLoopOrientation(inPath, true);
+                        inPath.trace.sourcePartId = part.id;
+                        inPath.trace.sourceShapeId = shapeBelow->shapeId;
+                        inPath.trace.role = PathRole::MATERIAL_CUTZONE_INNER;
+                        inPath.trace.offsetDistance = offsetDist + toolRadius;
+                        inPath.trace.entitySignature = computeEntitySignature(inPath.trace.entityHash, inPath.trace.offsetDistance);
+                        inPath.trace.geometrySignature = computeGeometrySignature(inPath);
                         procPaths.materialCutZoneInner.push_back(inPath);
                     }
 
@@ -1571,6 +1725,12 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
 
                     for (auto outPath : baseOuterPaths) {
                         ensureLoopOrientation(outPath, true);
+                        outPath.trace.sourcePartId = part.id;
+                        outPath.trace.sourceShapeId = shapeBelow->shapeId;
+                        outPath.trace.role = PathRole::MATERIAL_CUTZONE_OUTER;
+                        outPath.trace.offsetDistance = offsetDist - toolRadius;
+                        outPath.trace.entitySignature = computeEntitySignature(outPath.trace.entityHash, outPath.trace.offsetDistance);
+                        outPath.trace.geometrySignature = computeGeometrySignature(outPath);
                         procPaths.materialCutZoneOuter.push_back(outPath);
                     }
                 }
@@ -1606,17 +1766,35 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
                 for (const auto& path : candPaths) {
                     AnalyticalPath loop = path;
                     ensureLoopOrientation(loop, true);
+                    loop.trace.sourcePartId = part.id;
+                    loop.trace.sourceShapeId = candidateShape.shapeId;
+                    loop.trace.role = PathRole::ISLAND_OUTLINE;
+                    loop.trace.offsetDistance = 0.0;
+                    loop.trace.entitySignature = computeEntitySignature(loop.trace.entityHash, 0.0);
+                    loop.trace.geometrySignature = computeGeometrySignature(loop);
                     islandPaths.shapeOutline.push_back(loop);
 
                     auto tPaths = offsetAnalyticalPath(loop, -toolRadius);
                     for (auto tp : tPaths) {
                         ensureLoopOrientation(tp, true);
+                        tp.trace.sourcePartId = part.id;
+                        tp.trace.sourceShapeId = candidateShape.shapeId;
+                        tp.trace.role = PathRole::ISLAND_TOOLPATH;
+                        tp.trace.offsetDistance = -toolRadius;
+                        tp.trace.entitySignature = computeEntitySignature(tp.trace.entityHash, -toolRadius);
+                        tp.trace.geometrySignature = computeGeometrySignature(tp);
                         islandPaths.shapeToolPath.push_back(tp);
                     }
 
                     auto cPaths = offsetAnalyticalPath(loop, -toolDiameter);
                     for (auto cp : cPaths) {
                         ensureLoopOrientation(cp, true);
+                        cp.trace.sourcePartId = part.id;
+                        cp.trace.sourceShapeId = candidateShape.shapeId;
+                        cp.trace.role = PathRole::ISLAND_CUTZONE;
+                        cp.trace.offsetDistance = -toolDiameter;
+                        cp.trace.entitySignature = computeEntitySignature(cp.trace.entityHash, -toolDiameter);
+                        cp.trace.geometrySignature = computeGeometrySignature(cp);
                         islandPaths.shapeCutZone.push_back(cp);
                     }
                 }

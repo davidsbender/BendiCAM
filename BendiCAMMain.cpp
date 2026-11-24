@@ -1410,8 +1410,7 @@ void BendiCAMFrame::OnPanelLeftDown(wxMouseEvent& event)
 
 std::vector<AnalyticalPath> BendiCAMFrame::getShapeAnalyticalPaths(const CamShape& shape) const
 {
-    std::vector<size_t> indices(shape.entityIndices.begin(), shape.entityIndices.end());
-    return ::getShapeAnalyticalPaths(m_dxfModel, indices);
+    return ::getShapeAnalyticalPaths(m_dxfModel, shape);
 }
 
 std::vector<std::vector<DxfPoint>> BendiCAMFrame::getShapeClosedPaths(const CamShape& shape) const

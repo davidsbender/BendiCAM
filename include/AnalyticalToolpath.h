@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <cstdint>
 
 struct CamShape {
     int shapeId = 1;
@@ -70,7 +71,65 @@ struct PathPrimitive {
     }
 };
 
-using AnalyticalPath = std::vector<PathPrimitive>;
+enum class PathRole {
+    UNKNOWN = 0,
+    RAW_SHAPE,
+    SHAPE_OUTLINE,
+    SHAPE_TOOLPATH,
+    SHAPE_CUTZONE,
+    MATERIAL_OUTLINE,
+    MATERIAL_CUTZONE_INNER,
+    MATERIAL_TOOLPATH,
+    MATERIAL_CUTZONE_OUTER,
+    ISLAND_OUTLINE,
+    ISLAND_TOOLPATH,
+    ISLAND_CUTZONE,
+    POCKET_RING,
+    BAND_CLEARING,
+    OUTER_CUTOUT
+};
+
+struct PathTraceInfo {
+    // Ownership & Semantic Role
+    int sourcePartId = -1;
+    int sourceShapeId = -1;
+    PathRole role = PathRole::UNKNOWN;
+
+    // Lineage Parameters
+    uint64_t entityHash = 0;       // 64-bit hash of sorted base DXF entity indices
+    double offsetDistance = 0.0;   // In millimeters (outward +, inward -)
+
+    // Signatures
+    uint64_t entitySignature = 0;   // hash(entityHash, quantized offsetDistance)
+    uint64_t geometrySignature = 0; // hash(Area, Perimeter, Centroid, BoundingBox)
+
+    // Comparison Predicates
+    // 1. Same source CAD geometry (ignores role & offset)
+    bool isSameSourceEntity(const PathTraceInfo& other) const {
+        return entityHash != 0 && entityHash == other.entityHash;
+    }
+
+    // 2. Same source CAD geometry AND same offset (ignores role)
+    bool isSameOffsetLineage(const PathTraceInfo& other) const {
+        return entitySignature != 0 && entitySignature == other.entitySignature;
+    }
+
+    // 3. Same physical curve in (X, Y) space (ignores CAD entity provenance)
+    bool isSameGeometry(const PathTraceInfo& other) const {
+        return geometrySignature != 0 && geometrySignature == other.geometrySignature;
+    }
+
+    // 4. True duplicate (same CAD source, same offset, same physical geometry)
+    bool isRedundantWith(const PathTraceInfo& other) const {
+        return isSameOffsetLineage(other) && isSameGeometry(other);
+    }
+};
+
+struct AnalyticalPath : public std::vector<PathPrimitive> {
+    PathTraceInfo trace;
+
+    using std::vector<PathPrimitive>::vector;
+};
 
 struct ShapeFeaturePaths {
     std::vector<AnalyticalPath> shapeOutline;
@@ -134,6 +193,11 @@ std::vector<AnalyticalPath> generateBandClearingLoops(const DxfModel& model, con
 std::vector<AnalyticalPath> generateOuterCutoutPaths(const DxfModel& model, const std::vector<CamShape>& shapes, double toolDiameter);
 
 std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const CamShape& shape);
+
+// Traceability & Signature Functions
+uint64_t computeEntityHash(const std::vector<size_t>& entityIndices);
+uint64_t computeEntitySignature(uint64_t entityHash, double offsetDistMm);
+uint64_t computeGeometrySignature(const AnalyticalPath& path);
 
 SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
     const DxfModel& model,
