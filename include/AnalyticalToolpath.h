@@ -46,6 +46,7 @@ struct PathPrimitive {
     DxfPoint center;
     double radius = 0.0;
     bool isCCW = true; // true = Counter-Clockwise sweep from startPt to endPt around center
+    bool isSpur = false;
 
     PathPrimitive() = default;
 
@@ -101,6 +102,7 @@ PathPrimitive createRollAroundArc(const PathPrimitive& prim1, const PathPrimitiv
 bool findPrimitiveIntersection(const PathPrimitive& p1, const PathPrimitive& p2, DxfPoint& outIntersect);
 bool findPrimitiveIntersectionBounded(const PathPrimitive& p1, const PathPrimitive& p2, DxfPoint& outIntersect);
 
+AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist);
 std::vector<AnalyticalPath> offsetAnalyticalPath(const AnalyticalPath& path, double dist);
 AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path);
 
