@@ -161,6 +161,8 @@ The 2D drawing viewport automatically adapts its rendering depending on whether 
 | | Material Toolpath | Material Floor | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
 | | Level Shapes Outline / Cut Zones | Islands | Light Amber (`#FFAF28`) | `wxColour(255, 175, 40)` |
 | | Level Shapes Toolpath | Islands | Light Blue (`#4182F5`) | `wxColour(65, 130, 245)` |
+| | Derived Pocket Outer Boundary | Cleared Floor Limit | Solid Vibrant Blue | `wxColour(0, 140, 240)` |
+| | Derived Pocket Island Boundary | Boss Obstacle Limit | Solid Warm Amber | `wxColour(240, 120, 0)` |
 | **Part Definition Mode** | Primary Shape Outline / Cut Zones | Selected Island | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
 | | Primary Shape Toolpath | Selected Island | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
 | | Material Base Outline / Cut Zones | Floor | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
@@ -169,4 +171,28 @@ The 2D drawing viewport automatically adapts its rendering depending on whether 
 | | Sibling Shapes Toolpath | Sibling Islands | Bright Blue (`#4182F5`) | `wxColour(65, 130, 245)` |
 
 * Circular vertex dots are rendered at every segment and arc endpoint, matching the stroke color of their respective paths for instant geometric inspection.
+
+---
+
+### 4. Analytical Boolean Subtraction & Concrete Machining Paths
+
+To generate final milling paths for each level, the system computes the 2D boolean difference:
+$$\text{Clearing Toolpath Area} = \text{Material Outline Toolpath} \setminus \bigcup_{i} \text{Boss Toolpaths}_i$$
+
+Because boolean operations create composite geometry with newly split line/arc segments and changing topology, the clearing boundaries are concrete, owned structures rather than pointers.
+
+#### A. Architecture Modules
+* **`AnalyticalBoolean` (`include/AnalyticalBoolean.h`, `src/AnalyticalBoolean.cpp`)**:
+  - Multi-root analytical intersections for Line–Line (0–1), Line–Arc (0–2), and Arc–Arc (0–2) without line discretization.
+  - Parametric primitive splitting at $t \in (0, 1)$ preserving corner spur metadata.
+  - Weiler-Atherton directed traversal for true analytical curve boolean difference ($A \setminus B$).
+* **`MachiningPaths` (`include/MachiningPaths.h`, `src/MachiningPaths.cpp`)**:
+  - `MachiningPocket`: Explicit domain representation with `outerBoundary` (CCW internal wall) and `islandBoundaries` (CW/CCW boss limits).
+  - `LevelMachiningToolpaths`: Contains the resulting pockets to clear on each machining level.
+  - Sequentially subtracts boss toolpaths from material floor toolpaths, correctly handling complete coverage (empty), islands strictly within floor (pockets with holes), and bisecting cuts (multiple independent pockets).
+
+#### B. Corner Overcut Spurs as Vertex Metadata
+- Rather than inserting 1D zero-area antenna lines ($V \to \text{Apex} \to V$) that violate 2D manifold topology, convex corner overcut relief is tagged directly on `PathPrimitive` via `hasEndSpur` and `endSpurApex`.
+- Surviving corners automatically retain their spur motion through boolean operations; corners clipped away by islands are naturally discarded.
+
 

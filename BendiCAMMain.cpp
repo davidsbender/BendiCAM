@@ -1993,6 +1993,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         m_partShapePaths.clear();
         m_procPaths = SelectedShapeProcessingPaths();
         m_machPaths = MachiningLevelPaths();
+        m_levelMachiningPaths = LevelMachiningToolpaths();
 
         bool isMachiningMode = (NotebookRight && NotebookRight->GetSelection() == 1);
 
@@ -2017,6 +2018,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
 
                 if (targetLevel) {
                     m_machPaths = computeMachiningLevelPaths(m_dxfModel, part, *targetLevel, m_partShapePaths);
+                    m_levelMachiningPaths = computeLevelMachiningToolpaths(m_dxfModel, part, m_machPaths);
 
                     // Render the machining level paths and their vertices
                     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
@@ -2039,6 +2041,14 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                                     }
                                     gpath.CloseSubpath();
                                     gc->StrokePath(gpath);
+                                }
+                                for (const auto& prim : path) {
+                                    if (prim.hasEndSpur) {
+                                        wxGraphicsPath sp = gc->CreatePath();
+                                        sp.MoveToPoint(ToScreen(prim.endPt.x, prim.endPt.y));
+                                        sp.AddLineToPoint(ToScreen(prim.endSpurApex.x, prim.endSpurApex.y));
+                                        gc->StrokePath(sp);
+                                    }
                                 }
                             }
                         };
@@ -2081,6 +2091,21 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                             drawVertices(isl.cutZone, colLightAmber);
                             drawVertices(isl.toolPath, colLightBlue);
                         }
+
+                        // 3. Derived Machining Pockets (Solid Lines): Cleared Floor Boundaries & Island Limits
+                        wxColour colMachPocket(0, 140, 240); // Solid Vibrant Blue for resulting pocket boundary
+                        wxColour colMachIsland(240, 120, 0); // Solid Warm Amber for resulting island boundary
+                        for (const auto& pocket : m_levelMachiningPaths.pockets) {
+                            if (!pocket.outerBoundary.empty()) {
+                                std::vector<AnalyticalPath> outerList = { pocket.outerBoundary };
+                                drawPaths(outerList, colMachPocket, false);
+                                drawVertices(outerList, colMachPocket);
+                            }
+                            if (!pocket.islandBoundaries.empty()) {
+                                drawPaths(pocket.islandBoundaries, colMachIsland, false);
+                                drawVertices(pocket.islandBoundaries, colMachIsland);
+                            }
+                        }
                     }
                 }
             } else {
@@ -2109,6 +2134,14 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                                     }
                                     gpath.CloseSubpath();
                                     gc->StrokePath(gpath);
+                                }
+                                for (const auto& prim : path) {
+                                    if (prim.hasEndSpur) {
+                                        wxGraphicsPath sp = gc->CreatePath();
+                                        sp.MoveToPoint(ToScreen(prim.endPt.x, prim.endPt.y));
+                                        sp.AddLineToPoint(ToScreen(prim.endSpurApex.x, prim.endSpurApex.y));
+                                        gc->StrokePath(sp);
+                                    }
                                 }
                             }
                         };

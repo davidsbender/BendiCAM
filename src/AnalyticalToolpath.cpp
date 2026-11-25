@@ -501,6 +501,10 @@ AnalyticalPath cleanDegeneratePrimitives(const AnalyticalPath& path) {
         } else if (isDegeneratePrimitive(prim)) {
             if (!cleaned.empty()) {
                 cleaned.back().endPt = prim.endPt;
+                if (prim.hasEndSpur) {
+                    cleaned.back().hasEndSpur = true;
+                    cleaned.back().endSpurApex = prim.endSpurApex;
+                }
             }
         } else {
             cleaned.push_back(prim);
@@ -1138,11 +1142,27 @@ void emitAnalyticalLoopGCode(std::ofstream& out, const AnalyticalPath& path,
         snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
         for (const auto& prim : path) {
             emitPrimitiveGCode(out, prim, curZ, feedXY);
+            if (prim.hasEndSpur) {
+                snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n",
+                         prim.endSpurApex.x, prim.endSpurApex.y, curZ, feedXY);
+                out << buf;
+                snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n",
+                         prim.endPt.x, prim.endPt.y, curZ, feedXY);
+                out << buf;
+            }
         }
     } else {
         snprintf(buf, sizeof(buf), "G1 F%.3f\n", feedXY); out << buf;
         for (const auto& prim : path) {
             emitPrimitiveGCode(out, prim, curZ, feedXY);
+            if (prim.hasEndSpur) {
+                snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n",
+                         prim.endSpurApex.x, prim.endSpurApex.y, curZ, feedXY);
+                out << buf;
+                snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f\n",
+                         prim.endPt.x, prim.endPt.y, curZ, feedXY);
+                out << buf;
+            }
         }
     }
 
@@ -1671,12 +1691,10 @@ ShapePaths computeShapePaths(
                 if (overcutPercent < 50.0) {
                     double spurDist = (0.5 - (overcutPercent / 100.0)) * toolDiameter;
                     if (spurDist > 1e-4) {
-                        AnalyticalPath spurredPath;
-                        size_t numPrims = cleanTpUnspurred.size();
+                        size_t numPrims = cleanTp.size();
                         for (size_t i = 0; i < numPrims; ++i) {
-                            const auto& prim1 = cleanTpUnspurred[i];
-                            const auto& prim2 = cleanTpUnspurred[(i + 1) % numPrims];
-                            spurredPath.push_back(prim1);
+                            const auto& prim1 = cleanTp[i];
+                            const auto& prim2 = cleanTp[(i + 1) % numPrims];
 
                             DxfPoint t1 = getPrimitiveEndTangent(prim1);
                             DxfPoint t2 = getPrimitiveStartTangent(prim2);
@@ -1706,20 +1724,14 @@ ShapePaths computeShapePaths(
                                             DxfPoint apexPt(vertexPt.x + nx * spurTravelLen,
                                                            vertexPt.y + ny * spurTravelLen);
 
-                                            PathPrimitive s1 = PathPrimitive::CreateLine(vertexPt, apexPt);
-                                            PathPrimitive s2 = PathPrimitive::CreateLine(apexPt, vertexPt);
-                                            s1.isSpur = true;
-                                            s2.isSpur = true;
-                                            spurredPath.push_back(s1);
-                                            spurredPath.push_back(s2);
-
+                                            cleanTp[i].hasEndSpur = true;
+                                            cleanTp[i].endSpurApex = apexPt;
                                             spursAtCorners.push_back({vertexPt, apexPt});
                                         }
                                     }
                                 }
                             }
                         }
-                        cleanTp = cleanDegeneratePrimitives(spurredPath);
                     }
                 }
 

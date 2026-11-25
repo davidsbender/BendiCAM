@@ -111,16 +111,20 @@
 		<Unit filename="BendiCAMApp.h" />
 		<Unit filename="BendiCAMMain.cpp" />
 		<Unit filename="BendiCAMMain.h" />
+		<Unit filename="include/AnalyticalBoolean.h" />
 		<Unit filename="include/AnalyticalToolpath.h" />
 		<Unit filename="include/DxfParser.h" />
 		<Unit filename="include/JoystickCalibration.h" />
+		<Unit filename="include/MachiningPaths.h" />
 		<Unit filename="include/PositionBarCtrl.h" />
 		<Unit filename="resource.rc">
 			<Option compilerVar="WINDRES" />
 		</Unit>
+		<Unit filename="src/AnalyticalBoolean.cpp" />
 		<Unit filename="src/AnalyticalToolpath.cpp" />
 		<Unit filename="src/DxfParser.cpp" />
 		<Unit filename="src/JoystickCalibration.cpp" />
+		<Unit filename="src/MachiningPaths.cpp" />
 		<Unit filename="wxsmith/BendiCAMframe.wxs" />
 		<Extensions>
 			<wxsmith version="1">

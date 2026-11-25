@@ -49,6 +49,10 @@ struct PathPrimitive {
     bool isCCW = true; // true = Counter-Clockwise sweep from startPt to endPt around center
     bool isSpur = false;
 
+    // Corner Overcut Spur Metadata (at endPt)
+    bool hasEndSpur = false;
+    DxfPoint endSpurApex;
+
     PathPrimitive() = default;
 
     static PathPrimitive CreateLine(const DxfPoint& start, const DxfPoint& end) {

@@ -55,6 +55,7 @@ public:
 #include <hidpi.h>
 #include "DxfParser.h"
 #include "AnalyticalToolpath.h"
+#include "MachiningPaths.h"
 #include "JoystickCalibration.h"
 #include "SteeringWheelCtrl.h"
 #include "PositionBarCtrl.h"
@@ -265,6 +266,7 @@ class BendiCAMFrame: public wxFrame
         std::vector<ShapePaths> m_partShapePaths;
         SelectedShapeProcessingPaths m_procPaths;
         MachiningLevelPaths m_machPaths;
+        LevelMachiningToolpaths m_levelMachiningPaths;
 
         DxfModel m_dxfModel;
         PHIDP_PREPARSED_DATA preparsedData = nullptr;
