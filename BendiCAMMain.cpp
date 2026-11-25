@@ -257,7 +257,7 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     wxMenuItem* MenuItemSaveProject;
 
     Create(parent, wxID_ANY, _("BendiCAM"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE|wxBORDER_DOUBLE, _T("wxID_ANY"));
-    SetClientSize(wxSize(927,578));
+    SetClientSize(wxSize(927,770));
     PanelDrawing = new wxPanel(this, ID_PANEL1, wxPoint(24,24), wxSize(320,360), wxBORDER_SUNKEN|wxTAB_TRAVERSAL|wxVSCROLL|wxHSCROLL, _T("ID_PANEL1"));
     PanelDrawing->SetBackgroundColour(wxColour(255,255,255));
     Panel3D = new wxPanel(this, ID_PANEL2, wxPoint(352,24), wxSize(316,360), wxBORDER_SUNKEN|wxTAB_TRAVERSAL, _T("ID_PANEL2"));
@@ -274,8 +274,8 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     CheckBoxClosePolylines->SetValue(true);
     StaticTextConnTol = new wxStaticText(this, ID_STATICTEXT2, _("Matching Tolerance:"), wxPoint(692,358), wxDefaultSize, 0, _T("ID_STATICTEXT2"));
     TextCtrlConnTolerance = new wxTextCtrl(this, ID_TEXTCTRL3, _T("0.1"), wxPoint(825,356), wxSize(66,22), 0, wxDefaultValidator, _T("ID_TEXTCTRL3"));
-    StaticBoxStatus = new wxStaticBox(this, ID_STATICBOX2, _("Status"), wxPoint(24,400), wxSize(879,136), 0, _T("ID_STATICBOX2"));
-    TextCtrlStatus = new wxTextCtrl(this, ID_TEXTCTRL1, _("Running\n"), wxPoint(40,424), wxSize(847,96), wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
+    StaticBoxStatus = new wxStaticBox(this, ID_STATICBOX2, _("Status"), wxPoint(16,664), wxSize(896,96), 0, _T("ID_STATICBOX2"));
+    TextCtrlStatus = new wxTextCtrl(this, ID_TEXTCTRL1, _("Running\n"), wxPoint(24,680), wxSize(880,64), wxTE_MULTILINE|wxVSCROLL, wxDefaultValidator, _T("ID_TEXTCTRL1"));
     StaticBoxTool = new wxStaticBox(this, ID_STATICBOX5, _("Tool (Milling Cutter)"), wxPoint(680,396), wxSize(223,135), 0, _T("ID_STATICBOX5"));
     StaticTextToolDiameter = new wxStaticText(this, ID_STATICTEXT3, _("Diameter (mm):"), wxPoint(692,416), wxDefaultSize, 0, _T("ID_STATICTEXT3"));
     TextCtrlToolDiameter = new wxTextCtrl(this, ID_TEXTCTRL4, _T("2"), wxPoint(768,414), wxSize(40,22), wxTE_RIGHT, wxDefaultValidator, _T("ID_TEXTCTRL4"));
@@ -381,18 +381,41 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     PanelDrawing->Reparent(SplitterDraw3D);
     Panel3D->Reparent(SplitterDraw3D);
 
-    StaticBoxLayers->Reparent(PanelRight);
-    CheckListBoxLayers->Reparent(PanelRight);
+    NotebookRight = new wxNotebook(PanelRight, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0);
+    TabPartDef = new wxPanel(NotebookRight, wxID_ANY);
+    TabMachining = new wxPanel(NotebookRight, wxID_ANY);
 
-    StaticBoxParts->Reparent(PanelRight);
-    TreeCtrlParts->Reparent(PanelRight);
-    StaticTextDepth->Reparent(PanelRight);
-    TextCtrlDepth->Reparent(PanelRight);
-    ButtonCreatePart->Reparent(PanelRight);
-    ButtonAddToPart->Reparent(PanelRight);
-    CheckBoxClosePolylines->Reparent(PanelRight);
-    StaticTextConnTol->Reparent(PanelRight);
-    TextCtrlConnTolerance->Reparent(PanelRight);
+    NotebookRight->AddPage(TabPartDef, _("Part Definition"), true);
+    NotebookRight->AddPage(TabMachining, _("Machining"), false);
+
+    StaticBoxLayers->Reparent(TabPartDef);
+    CheckListBoxLayers->Reparent(TabPartDef);
+
+    StaticBoxParts->SetLabel(_("Parts (Definition)"));
+    StaticBoxParts->Reparent(TabPartDef);
+    TreeCtrlParts->Reparent(TabPartDef);
+    StaticTextDepth->Reparent(TabPartDef);
+    TextCtrlDepth->Reparent(TabPartDef);
+    ButtonCreatePart->Reparent(TabPartDef);
+    ButtonAddToPart->Reparent(TabPartDef);
+    CheckBoxClosePolylines->Reparent(TabPartDef);
+    StaticTextConnTol->Reparent(TabPartDef);
+    TextCtrlConnTolerance->Reparent(TabPartDef);
+
+    StaticBoxPartsMachining = new wxStaticBox(TabMachining, wxID_ANY, _("Parts (Machining)"));
+    TreeCtrlPartsMachining = new wxTreeCtrl(TabMachining, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+        wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_HIDE_ROOT|wxTR_SINGLE);
+    TreeCtrlPartsMachining->Bind(wxEVT_COMMAND_TREE_SEL_CHANGED, &BendiCAMFrame::OnTreeCtrlPartsMachiningSelChanged, this);
+    NotebookRight->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, &BendiCAMFrame::OnNotebookPageChanged, this);
+
+    TabPartDef->Bind(wxEVT_SIZE, [this](wxSizeEvent& ev) {
+        ev.Skip();
+        LayoutPartDefTab();
+    });
+    TabMachining->Bind(wxEVT_SIZE, [this](wxSizeEvent& ev) {
+        ev.Skip();
+        LayoutMachiningTab();
+    });
 
     StaticBoxStatus->Reparent(PanelBottom);
     TextCtrlStatus->Reparent(PanelBottom);
@@ -489,28 +512,27 @@ void BendiCAMFrame::OnSize(wxSizeEvent& event)
     }
 }
 
-void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
+void BendiCAMFrame::LayoutPartDefTab()
 {
-    event.Skip();
-    if (!PanelRight) return;
-    int rw = PanelRight->GetClientSize().GetWidth();
-    int rh = PanelRight->GetClientSize().GetHeight();
-    if (rw <= 20 || rh <= 20) return;
+    if (!TabPartDef) return;
+    int tw = TabPartDef->GetClientSize().GetWidth();
+    int th = TabPartDef->GetClientSize().GetHeight();
+    if (tw <= 20 || th <= 20) return;
 
     int layersH = 110;
     if (StaticBoxLayers) {
-        StaticBoxLayers->SetSize(4, 4, rw - 8, layersH);
+        StaticBoxLayers->SetSize(4, 4, tw - 8, layersH);
         StaticBoxLayers->Lower();
-        if (CheckListBoxLayers) CheckListBoxLayers->SetSize(14, 24, rw - 28, layersH - 28);
+        if (CheckListBoxLayers) CheckListBoxLayers->SetSize(14, 24, tw - 28, layersH - 28);
     }
 
     int partsY = layersH + 6;
-    int partsH = 155;
+    int partsH = std::max(155, th - partsY - 4);
     if (StaticBoxParts) {
-        StaticBoxParts->SetSize(4, partsY, rw - 8, partsH);
+        StaticBoxParts->SetSize(4, partsY, tw - 8, partsH);
         StaticBoxParts->Lower();
 
-        int boxW = rw - 8;
+        int boxW = tw - 8;
         int bottomPadding = 6;
         int rowConnTolY = partsY + partsH - bottomPadding - 22;
         if (StaticTextConnTol) StaticTextConnTol->SetSize(14, rowConnTolY + 2, 120, 20);
@@ -532,8 +554,47 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
         int treeH = std::max(20, rowDepthY - 4 - treeTopY);
         if (TreeCtrlParts) TreeCtrlParts->SetSize(14, treeTopY, boxW - 20, treeH);
     }
+}
 
-    int toolY = partsY + partsH + 6;
+void BendiCAMFrame::LayoutMachiningTab()
+{
+    if (!TabMachining) return;
+    int mw = TabMachining->GetClientSize().GetWidth();
+    int mh = TabMachining->GetClientSize().GetHeight();
+    if (mw <= 20 || mh <= 20) return;
+
+    if (StaticBoxPartsMachining) {
+        StaticBoxPartsMachining->SetSize(4, 4, mw - 8, mh - 8);
+        StaticBoxPartsMachining->Lower();
+    }
+    if (TreeCtrlPartsMachining) {
+        TreeCtrlPartsMachining->SetSize(14, 24, mw - 28, mh - 36);
+    }
+}
+
+void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
+{
+    event.Skip();
+    if (!PanelRight) return;
+    int rw = PanelRight->GetClientSize().GetWidth();
+    int rh = PanelRight->GetClientSize().GetHeight();
+    if (rw <= 20 || rh <= 20) return;
+
+    int neededBelow = 253;
+    int notebookY = 4;
+    int notebookH = 305;
+    if (rh - neededBelow - notebookY > 305) {
+        notebookH = rh - neededBelow - notebookY;
+    }
+
+    if (NotebookRight) {
+        NotebookRight->SetSize(4, notebookY, rw - 8, notebookH);
+    }
+
+    LayoutPartDefTab();
+    LayoutMachiningTab();
+
+    int toolY = notebookY + notebookH + 6;
     int toolH = 155;
     if (StaticBoxTool) {
         StaticBoxTool->SetSize(4, toolY, rw - 8, toolH);
@@ -680,6 +741,190 @@ void BendiCAMFrame::RebuildPartsTree()
     }
 
     s_isRebuilding = false;
+
+    RebuildPartsMachiningTree();
+}
+
+void BendiCAMFrame::RebuildPartsMachiningTree()
+{
+    if (!TreeCtrlPartsMachining) return;
+
+    static bool s_isRebuildingMachining = false;
+    if (s_isRebuildingMachining) return;
+    s_isRebuildingMachining = true;
+
+    TreeCtrlPartsMachining->DeleteAllItems();
+    wxTreeItemId rootId = TreeCtrlPartsMachining->AddRoot(_("Parts"));
+
+    for (int pIdx = 0; pIdx < (int)m_parts.size(); ++pIdx) {
+        const auto& part = m_parts[pIdx];
+        wxTreeItemId partId = TreeCtrlPartsMachining->AppendItem(
+            rootId,
+            wxString::FromUTF8(part.name.c_str()),
+            -1, -1,
+            new MachiningTreeItemData(pIdx, -1)
+        );
+
+        auto levels = computePartMachiningLevels(m_dxfModel, part);
+        for (const auto& lvl : levels) {
+            wxString shapeListStr;
+            for (size_t i = 0; i < lvl.shapeIndices.size(); ++i) {
+                if (i > 0) shapeListStr += _(", ");
+                shapeListStr += wxString::Format(_("Shape %d"), lvl.shapeIndices[i] + 1);
+            }
+            wxString levelLabel = wxString::Format(_("Level %d: %.1f mm [%s]"), lvl.levelIndex, lvl.depth, shapeListStr);
+            TreeCtrlPartsMachining->AppendItem(
+                partId,
+                levelLabel,
+                -1, -1,
+                new MachiningTreeItemData(pIdx, lvl.levelIndex, lvl.depth, lvl.shapeIndices)
+            );
+        }
+
+        TreeCtrlPartsMachining->Expand(partId);
+    }
+
+    s_isRebuildingMachining = false;
+}
+
+void BendiCAMFrame::OnTreeCtrlPartsMachiningSelChanged(wxTreeEvent& event)
+{
+    wxTreeItemId item = event.GetItem();
+    if (item.IsOk()) {
+        MachiningTreeItemData* data = (MachiningTreeItemData*)TreeCtrlPartsMachining->GetItemData(item);
+        if (data) {
+            m_selectedPartIndex = data->partIndex;
+            m_selectedMachiningLevelIndex = data->levelIndex;
+            if (!data->shapeIndices.empty()) {
+                m_selectedShapeInPartIndex = data->shapeIndices[0];
+            } else {
+                m_selectedShapeInPartIndex = -1;
+            }
+
+            if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
+                if (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)m_parts[m_selectedPartIndex].shapes.size()) {
+                    double d = m_parts[m_selectedPartIndex].shapes[m_selectedShapeInPartIndex].depth;
+                    TextCtrlDepth->ChangeValue(wxString::Format(_("%.1f"), d));
+                } else if (!m_parts[m_selectedPartIndex].shapes.empty()) {
+                    double d = m_parts[m_selectedPartIndex].shapes[0].depth;
+                    TextCtrlDepth->ChangeValue(wxString::Format(_("%.1f"), d));
+                }
+            }
+        } else {
+            m_selectedPartIndex = -1;
+            m_selectedShapeInPartIndex = -1;
+            m_selectedMachiningLevelIndex = -1;
+        }
+    } else {
+        m_selectedPartIndex = -1;
+        m_selectedShapeInPartIndex = -1;
+        m_selectedMachiningLevelIndex = -1;
+    }
+
+    UpdatePartButtonStates();
+    PanelDrawing->Refresh();
+    Panel3D->Refresh();
+}
+
+void BendiCAMFrame::SyncPartDefTreeSelection()
+{
+    if (!TreeCtrlParts) return;
+    wxTreeItemId rootId = TreeCtrlParts->GetRootItem();
+    if (!rootId.IsOk()) return;
+
+    if (m_selectedPartIndex < 0 || m_selectedPartIndex >= (int)m_parts.size()) {
+        TreeCtrlParts->UnselectAll();
+        return;
+    }
+
+    wxTreeItemIdValue partCookie;
+    wxTreeItemId partId = TreeCtrlParts->GetFirstChild(rootId, partCookie);
+    while (partId.IsOk()) {
+        PartTreeItemData* pData = (PartTreeItemData*)TreeCtrlParts->GetItemData(partId);
+        if (pData && pData->partIndex == m_selectedPartIndex) {
+            if (m_selectedShapeInPartIndex >= 0) {
+                wxTreeItemIdValue shapeCookie;
+                wxTreeItemId shapeId = TreeCtrlParts->GetFirstChild(partId, shapeCookie);
+                while (shapeId.IsOk()) {
+                    PartTreeItemData* sData = (PartTreeItemData*)TreeCtrlParts->GetItemData(shapeId);
+                    if (sData && sData->shapeIndex == m_selectedShapeInPartIndex) {
+                        TreeCtrlParts->SelectItem(shapeId);
+                        return;
+                    }
+                    shapeId = TreeCtrlParts->GetNextChild(partId, shapeCookie);
+                }
+            }
+            TreeCtrlParts->SelectItem(partId);
+            return;
+        }
+        partId = TreeCtrlParts->GetNextChild(rootId, partCookie);
+    }
+}
+
+void BendiCAMFrame::SyncMachiningTreeSelection()
+{
+    if (!TreeCtrlPartsMachining) return;
+    wxTreeItemId rootId = TreeCtrlPartsMachining->GetRootItem();
+    if (!rootId.IsOk()) return;
+
+    if (m_selectedPartIndex < 0 || m_selectedPartIndex >= (int)m_parts.size()) {
+        TreeCtrlPartsMachining->UnselectAll();
+        return;
+    }
+
+    wxTreeItemIdValue partCookie;
+    wxTreeItemId partId = TreeCtrlPartsMachining->GetFirstChild(rootId, partCookie);
+    while (partId.IsOk()) {
+        MachiningTreeItemData* pData = (MachiningTreeItemData*)TreeCtrlPartsMachining->GetItemData(partId);
+        if (pData && pData->partIndex == m_selectedPartIndex) {
+            if (m_selectedMachiningLevelIndex >= 1) {
+                wxTreeItemIdValue lvlCookie;
+                wxTreeItemId lvlId = TreeCtrlPartsMachining->GetFirstChild(partId, lvlCookie);
+                while (lvlId.IsOk()) {
+                    MachiningTreeItemData* lData = (MachiningTreeItemData*)TreeCtrlPartsMachining->GetItemData(lvlId);
+                    if (lData && lData->levelIndex == m_selectedMachiningLevelIndex) {
+                        TreeCtrlPartsMachining->SelectItem(lvlId);
+                        return;
+                    }
+                    lvlId = TreeCtrlPartsMachining->GetNextChild(partId, lvlCookie);
+                }
+            } else if (m_selectedShapeInPartIndex >= 0) {
+                wxTreeItemIdValue lvlCookie;
+                wxTreeItemId lvlId = TreeCtrlPartsMachining->GetFirstChild(partId, lvlCookie);
+                while (lvlId.IsOk()) {
+                    MachiningTreeItemData* lData = (MachiningTreeItemData*)TreeCtrlPartsMachining->GetItemData(lvlId);
+                    if (lData) {
+                        for (int sIdx : lData->shapeIndices) {
+                            if (sIdx == m_selectedShapeInPartIndex) {
+                                m_selectedMachiningLevelIndex = lData->levelIndex;
+                                TreeCtrlPartsMachining->SelectItem(lvlId);
+                                return;
+                            }
+                        }
+                    }
+                    lvlId = TreeCtrlPartsMachining->GetNextChild(partId, lvlCookie);
+                }
+            }
+            TreeCtrlPartsMachining->SelectItem(partId);
+            return;
+        }
+        partId = TreeCtrlPartsMachining->GetNextChild(rootId, partCookie);
+    }
+}
+
+void BendiCAMFrame::OnNotebookPageChanged(wxBookCtrlEvent& event)
+{
+    int selPage = event.GetSelection();
+    if (selPage == 0) {
+        LayoutPartDefTab();
+        SyncPartDefTreeSelection();
+    } else if (selPage == 1) {
+        LayoutMachiningTab();
+        SyncMachiningTreeSelection();
+    }
+    PanelDrawing->Refresh();
+    Panel3D->Refresh();
+    event.Skip();
 }
 
 void BendiCAMFrame::OnTreeCtrlPartsSelChanged(wxTreeEvent& event)
@@ -731,6 +976,7 @@ void BendiCAMFrame::OnTextCtrlDepthChange(wxCommandEvent& event)
             wxString shapeLabel = wxString::Format(_("Shape %d (Depth: %.1f mm)"), m_selectedShapeInPartIndex + 1, newDepth);
             TreeCtrlParts->SetItemText(selectedItem, shapeLabel);
         }
+        RebuildPartsMachiningTree();
         PanelDrawing->Refresh();
         Panel3D->Refresh();
         MarkDirty();
@@ -836,6 +1082,7 @@ bool BendiCAMFrame::OpenDxf(const wxString& filename)
         m_nextPartId = 1;
 
         TreeCtrlParts->DeleteAllItems();
+        if (TreeCtrlPartsMachining) TreeCtrlPartsMachining->DeleteAllItems();
         UpdatePartButtonStates();
 
         CheckListBoxLayers->Clear();
@@ -1401,6 +1648,7 @@ void BendiCAMFrame::OnPanelLeftDown(wxMouseEvent& event)
         m_selectedPartIndex = -1;
         m_selectedShapeInPartIndex = -1;
         TreeCtrlParts->UnselectAll();
+        if (TreeCtrlPartsMachining) TreeCtrlPartsMachining->UnselectAll();
         TextCtrlStatus->AppendText(_("Selection cleared\n"));
     }
 
@@ -1743,84 +1991,172 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         if (overcutPercent < 0.0) overcutPercent = 30.0;
 
         m_procPaths = SelectedShapeProcessingPaths();
+        m_machPaths = MachiningLevelPaths();
+
+        bool isMachiningMode = (NotebookRight && NotebookRight->GetSelection() == 1);
 
         if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
             const auto& part = m_parts[m_selectedPartIndex];
-            int shapeIdx = (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)part.shapes.size()) ? m_selectedShapeInPartIndex : 0;
-            if (!part.shapes.empty() && shapeIdx >= 0 && shapeIdx < (int)part.shapes.size()) {
-                m_procPaths = computeSelectedShapeProcessingPaths(m_dxfModel, part, shapeIdx, toolDiameter, overcutPercent);
 
-                // Render the paths and their vertices
-                std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
-                if (gc) {
-                    wxColour colAmber(230, 100, 0);       // Dark amber
-                    wxColour colBlue(0, 0, 180);          // Dark blue
-                    wxColour colBrightAmber(255, 175, 40); // Bright amber (islands)
-                    wxColour colBrightBlue(65, 130, 245);  // Bright blue (islands toolpath)
-
-                    auto drawPaths = [&](const std::vector<AnalyticalPath>& paths, const wxColour& col, bool dashed) {
-                        gc->SetPen(wxPen(col, 2, dashed ? wxPENSTYLE_SHORT_DASH : wxPENSTYLE_SOLID));
-                        gc->SetBrush(*wxTRANSPARENT_BRUSH);
-                        for (const auto& path : paths) {
-                            auto pts = sampleAnalyticalPath(path, 0.5);
-                            if (pts.size() >= 3) {
-                                wxGraphicsPath gpath = gc->CreatePath();
-                                gpath.MoveToPoint(ToScreen(pts[0].x, pts[0].y));
-                                for (size_t i = 1; i < pts.size(); ++i) {
-                                    gpath.AddLineToPoint(ToScreen(pts[i].x, pts[i].y));
-                                }
-                                gpath.CloseSubpath();
-                                gc->StrokePath(gpath);
-                            }
+            if (isMachiningMode) {
+                auto levels = computePartMachiningLevels(m_dxfModel, part);
+                const MachiningLevel* targetLevel = nullptr;
+                if (m_selectedMachiningLevelIndex >= 1) {
+                    for (const auto& lvl : levels) {
+                        if (lvl.levelIndex == m_selectedMachiningLevelIndex) {
+                            targetLevel = &lvl;
+                            break;
                         }
-                    };
-
-                    auto drawVertices = [&](const std::vector<AnalyticalPath>& paths, const wxColour& strokeCol) {
-                        double r = 2.5; // vertex dot radius
-                        gc->SetBrush(*wxWHITE_BRUSH);
-                        gc->SetPen(wxPen(strokeCol, 1.5));
-                        for (const auto& path : paths) {
-                            for (const auto& prim : path) {
-                                wxPoint p = ToScreen(prim.startPt.x, prim.startPt.y);
-                                gc->DrawEllipse(p.x - r, p.y - r, 2.0 * r, 2.0 * r);
-                            }
-                        }
-                    };
-
-                    // 1. Main selected shape paths
-                    drawPaths(m_procPaths.shape.shapeOutline, colAmber, true);          // 1. ShapeOutline
-                    drawPaths(m_procPaths.shape.shapeToolPath, colBlue, true);          // 2. ShapeToolPath
-                    drawPaths(m_procPaths.shape.shapeCutZone, colAmber, true);          // 3. ShapeCutZone
-
-                    // 2. Material (lower shape) paths
-                    drawPaths(m_procPaths.materialOutline, colAmber, true);       // 4. MaterialOutline
-                    drawPaths(m_procPaths.materialCutZoneInner, colAmber, true);  // 5. MaterialCutZoneInner
-                    drawPaths(m_procPaths.materialToolPath, colBlue, true);       // 6. MaterialToolPath
-                    drawPaths(m_procPaths.materialCutZoneOuter, colAmber, true);  // 7. MaterialCutZoneOuter
-
-                    // 3. Island shapes paths (brighter dashed line to make main shape and material more prominent)
-                    for (const auto& island : m_procPaths.islandShapes) {
-                        drawPaths(island.shapeOutline, colBrightAmber, true);
-                        drawPaths(island.shapeToolPath, colBrightBlue, true);
-                        drawPaths(island.shapeCutZone, colBrightAmber, true);
                     }
+                }
+                if (!targetLevel && !levels.empty()) {
+                    targetLevel = &levels[0];
+                }
 
-                    // Vertices for main selected shape paths
-                    drawVertices(m_procPaths.shape.shapeOutline, colAmber);
-                    drawVertices(m_procPaths.shape.shapeToolPath, colBlue);
-                    drawVertices(m_procPaths.shape.shapeCutZone, colAmber);
+                if (targetLevel) {
+                    m_machPaths = computeMachiningLevelPaths(m_dxfModel, part, *targetLevel, toolDiameter, overcutPercent);
 
-                    // Vertices for material paths
-                    drawVertices(m_procPaths.materialOutline, colAmber);
-                    drawVertices(m_procPaths.materialCutZoneInner, colAmber);
-                    drawVertices(m_procPaths.materialToolPath, colBlue);
-                    drawVertices(m_procPaths.materialCutZoneOuter, colAmber);
+                    // Render the machining level paths and their vertices
+                    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+                    if (gc) {
+                        wxColour colDarkAmber(230, 100, 0);     // Material outline & clearing
+                        wxColour colDarkBlue(0, 0, 180);        // Material toolpath
+                        wxColour colLightAmber(255, 175, 40);   // Shapes outline & clearing
+                        wxColour colLightBlue(65, 130, 245);    // Shapes toolpath
 
-                    // Vertices for island shapes paths
-                    for (const auto& island : m_procPaths.islandShapes) {
-                        drawVertices(island.shapeOutline, colBrightAmber);
-                        drawVertices(island.shapeToolPath, colBrightBlue);
-                        drawVertices(island.shapeCutZone, colBrightAmber);
+                        auto drawPaths = [&](const std::vector<AnalyticalPath>& paths, const wxColour& col, bool dashed) {
+                            gc->SetPen(wxPen(col, 2, dashed ? wxPENSTYLE_SHORT_DASH : wxPENSTYLE_SOLID));
+                            gc->SetBrush(*wxTRANSPARENT_BRUSH);
+                            for (const auto& path : paths) {
+                                auto pts = sampleAnalyticalPath(path, 0.5);
+                                if (pts.size() >= 3) {
+                                    wxGraphicsPath gpath = gc->CreatePath();
+                                    gpath.MoveToPoint(ToScreen(pts[0].x, pts[0].y));
+                                    for (size_t i = 1; i < pts.size(); ++i) {
+                                        gpath.AddLineToPoint(ToScreen(pts[i].x, pts[i].y));
+                                    }
+                                    gpath.CloseSubpath();
+                                    gc->StrokePath(gpath);
+                                }
+                            }
+                        };
+
+                        auto drawVertices = [&](const std::vector<AnalyticalPath>& paths, const wxColour& strokeCol) {
+                            double r = 2.5; // vertex dot radius
+                            gc->SetBrush(*wxWHITE_BRUSH);
+                            gc->SetPen(wxPen(strokeCol, 1.5));
+                            for (const auto& path : paths) {
+                                for (const auto& prim : path) {
+                                    wxPoint p = ToScreen(prim.startPt.x, prim.startPt.y);
+                                    gc->DrawEllipse(p.x - r, p.y - r, 2.0 * r, 2.0 * r);
+                                }
+                            }
+                        };
+
+                        // 1. Material (lower shape) paths: Dark Amber & Dark Blue
+                        drawPaths(m_machPaths.materialOutline, colDarkAmber, true);
+                        drawPaths(m_machPaths.materialCutZoneInner, colDarkAmber, true);
+                        drawPaths(m_machPaths.materialToolPath, colDarkBlue, true);
+                        drawPaths(m_machPaths.materialCutZoneOuter, colDarkAmber, true);
+
+                        // 2. All Shapes on this level: Light Amber & Light Blue
+                        for (const auto& feat : m_machPaths.shapes) {
+                            drawPaths(feat.paths.shapeOutline, colLightAmber, true);
+                            drawPaths(feat.paths.shapeCutZone, colLightAmber, true);
+                            drawPaths(feat.paths.shapeToolPath, colLightBlue, true);
+                        }
+
+                        // Material Vertices
+                        drawVertices(m_machPaths.materialOutline, colDarkAmber);
+                        drawVertices(m_machPaths.materialCutZoneInner, colDarkAmber);
+                        drawVertices(m_machPaths.materialToolPath, colDarkBlue);
+                        drawVertices(m_machPaths.materialCutZoneOuter, colDarkAmber);
+
+                        // Shape Vertices
+                        for (const auto& feat : m_machPaths.shapes) {
+                            drawVertices(feat.paths.shapeOutline, colLightAmber);
+                            drawVertices(feat.paths.shapeCutZone, colLightAmber);
+                            drawVertices(feat.paths.shapeToolPath, colLightBlue);
+                        }
+                    }
+                }
+            } else {
+                int shapeIdx = (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)part.shapes.size()) ? m_selectedShapeInPartIndex : 0;
+                if (!part.shapes.empty() && shapeIdx >= 0 && shapeIdx < (int)part.shapes.size()) {
+                    m_procPaths = computeSelectedShapeProcessingPaths(m_dxfModel, part, shapeIdx, toolDiameter, overcutPercent);
+
+                    // Render the paths and their vertices
+                    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+                    if (gc) {
+                        wxColour colAmber(230, 100, 0);       // Dark amber
+                        wxColour colBlue(0, 0, 180);          // Dark blue
+                        wxColour colBrightAmber(255, 175, 40); // Bright amber (islands)
+                        wxColour colBrightBlue(65, 130, 245);  // Bright blue (islands toolpath)
+
+                        auto drawPaths = [&](const std::vector<AnalyticalPath>& paths, const wxColour& col, bool dashed) {
+                            gc->SetPen(wxPen(col, 2, dashed ? wxPENSTYLE_SHORT_DASH : wxPENSTYLE_SOLID));
+                            gc->SetBrush(*wxTRANSPARENT_BRUSH);
+                            for (const auto& path : paths) {
+                                auto pts = sampleAnalyticalPath(path, 0.5);
+                                if (pts.size() >= 3) {
+                                    wxGraphicsPath gpath = gc->CreatePath();
+                                    gpath.MoveToPoint(ToScreen(pts[0].x, pts[0].y));
+                                    for (size_t i = 1; i < pts.size(); ++i) {
+                                        gpath.AddLineToPoint(ToScreen(pts[i].x, pts[i].y));
+                                    }
+                                    gpath.CloseSubpath();
+                                    gc->StrokePath(gpath);
+                                }
+                            }
+                        };
+
+                        auto drawVertices = [&](const std::vector<AnalyticalPath>& paths, const wxColour& strokeCol) {
+                            double r = 2.5; // vertex dot radius
+                            gc->SetBrush(*wxWHITE_BRUSH);
+                            gc->SetPen(wxPen(strokeCol, 1.5));
+                            for (const auto& path : paths) {
+                                for (const auto& prim : path) {
+                                    wxPoint p = ToScreen(prim.startPt.x, prim.startPt.y);
+                                    gc->DrawEllipse(p.x - r, p.y - r, 2.0 * r, 2.0 * r);
+                                }
+                            }
+                        };
+
+                        // 1. Main selected shape paths
+                        drawPaths(m_procPaths.shape.shapeOutline, colAmber, true);          // 1. ShapeOutline
+                        drawPaths(m_procPaths.shape.shapeToolPath, colBlue, true);          // 2. ShapeToolPath
+                        drawPaths(m_procPaths.shape.shapeCutZone, colAmber, true);          // 3. ShapeCutZone
+
+                        // 2. Material (lower shape) paths
+                        drawPaths(m_procPaths.materialOutline, colAmber, true);       // 4. MaterialOutline
+                        drawPaths(m_procPaths.materialCutZoneInner, colAmber, true);  // 5. MaterialCutZoneInner
+                        drawPaths(m_procPaths.materialToolPath, colBlue, true);       // 6. MaterialToolPath
+                        drawPaths(m_procPaths.materialCutZoneOuter, colAmber, true);  // 7. MaterialCutZoneOuter
+
+                        // 3. Island shapes paths (brighter dashed line to make main shape and material more prominent)
+                        for (const auto& island : m_procPaths.islandShapes) {
+                            drawPaths(island.shapeOutline, colBrightAmber, true);
+                            drawPaths(island.shapeToolPath, colBrightBlue, true);
+                            drawPaths(island.shapeCutZone, colBrightAmber, true);
+                        }
+
+                        // Vertices for main selected shape paths
+                        drawVertices(m_procPaths.shape.shapeOutline, colAmber);
+                        drawVertices(m_procPaths.shape.shapeToolPath, colBlue);
+                        drawVertices(m_procPaths.shape.shapeCutZone, colAmber);
+
+                        // Vertices for material paths
+                        drawVertices(m_procPaths.materialOutline, colAmber);
+                        drawVertices(m_procPaths.materialCutZoneInner, colAmber);
+                        drawVertices(m_procPaths.materialToolPath, colBlue);
+                        drawVertices(m_procPaths.materialCutZoneOuter, colAmber);
+
+                        // Vertices for island shapes paths
+                        for (const auto& island : m_procPaths.islandShapes) {
+                            drawVertices(island.shapeOutline, colBrightAmber);
+                            drawVertices(island.shapeToolPath, colBrightBlue);
+                            drawVertices(island.shapeCutZone, colBrightAmber);
+                        }
                     }
                 }
             }

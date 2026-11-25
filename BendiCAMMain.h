@@ -31,6 +31,16 @@ public:
     PartTreeItemData(int pIdx, int sIdx = -1) : partIndex(pIdx), shapeIndex(sIdx) {}
 };
 
+class MachiningTreeItemData : public wxTreeItemData {
+public:
+    int partIndex = -1;
+    int levelIndex = -1;
+    double depth = 0.0;
+    std::vector<int> shapeIndices;
+    MachiningTreeItemData(int pIdx, int lvlIdx = -1, double d = 0.0, const std::vector<int>& sIndices = {})
+        : partIndex(pIdx), levelIndex(lvlIdx), depth(d), shapeIndices(sIndices) {}
+};
+
 #include <wx/filedlg.h>
 #include <wx/dcclient.h>
 #include <wx/dcbuffer.h>
@@ -38,6 +48,7 @@ public:
 #include <wx/filename.h>
 #include <wx/splitter.h>
 #include <wx/sizer.h>
+#include <wx/notebook.h>
 #include <fstream>
 #include <memory>
 #include <hidsdi.h>
@@ -179,6 +190,12 @@ class BendiCAMFrame: public wxFrame
         wxPanel* PanelDrawAnd3D = nullptr;
         wxPanel* PanelRight = nullptr;
 
+        wxNotebook* NotebookRight = nullptr;
+        wxPanel* TabPartDef = nullptr;
+        wxPanel* TabMachining = nullptr;
+        wxStaticBox* StaticBoxPartsMachining = nullptr;
+        wxTreeCtrl* TreeCtrlPartsMachining = nullptr;
+
         bool m_isDirty = false;
         wxString m_loadedFileName;
 
@@ -206,9 +223,16 @@ class BendiCAMFrame: public wxFrame
         void OnSize(wxSizeEvent& event);
         void OnRightPanelSize(wxSizeEvent& event);
         void OnBottomPanelSize(wxSizeEvent& event);
+        void OnNotebookPageChanged(wxBookCtrlEvent& event);
+        void OnTreeCtrlPartsMachiningSelChanged(wxTreeEvent& event);
+        void LayoutPartDefTab();
+        void LayoutMachiningTab();
 
         void UpdatePartButtonStates();
         void RebuildPartsTree();
+        void RebuildPartsMachiningTree();
+        void SyncPartDefTreeSelection();
+        void SyncMachiningTreeSelection();
         void getMinMaxDepth(double& minDepth, double& maxDepth) const;
         wxColour getDepthColor(double depth, double minDepth, double maxDepth) const;
         std::vector<std::vector<DxfPoint>> getShapeClosedPaths(const CamShape& shape) const;
@@ -236,8 +260,10 @@ class BendiCAMFrame: public wxFrame
         std::vector<CamPart> m_parts;
         int m_selectedPartIndex = -1;
         int m_selectedShapeInPartIndex = -1;
+        int m_selectedMachiningLevelIndex = -1;
         int m_nextPartId = 1;
         SelectedShapeProcessingPaths m_procPaths;
+        MachiningLevelPaths m_machPaths;
 
         DxfModel m_dxfModel;
         PHIDP_PREPARSED_DATA preparsedData = nullptr;

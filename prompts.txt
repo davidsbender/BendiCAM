@@ -45,3 +45,19 @@ Change this.
 In "SelectedShapeProcessingPaths", "MaterialCutZoneInner" is currently the below shape offset inward by (1 - overcutPercent / 100) * toolDiameter.
 Change this.
 "MaterialCutZoneInner" shall now be "MaterialToolPath", reduced (inward) by tool radius.
+
+shapeOutline
+shapeToolPath
+shapeCutZone
+materialOutline
+materialCutZoneInner
+materialToolPath
+materialCutZoneOuter
+
+I think we have a redundancy here:
+	struct LevelShapeFeature {
+		int shapeIndex = -1;               // Index in CamPart::shapes
+		const CamShape* shape = nullptr;   // Pointer to shape definition
+		ShapeFeaturePaths paths;           // shapeOutline, shapeToolPath, shapeCutZone
+	};
+The ShapeFeaturePaths exist already.

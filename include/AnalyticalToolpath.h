@@ -199,10 +199,57 @@ uint64_t computeEntityHash(const std::vector<size_t>& entityIndices);
 uint64_t computeEntitySignature(uint64_t entityHash, double offsetDistMm);
 uint64_t computeGeometrySignature(const AnalyticalPath& path);
 
+struct MachiningLevel {
+    int levelIndex = 0;
+    double depth = 0.0;
+    int belowShapeId = -1;
+    std::vector<int> shapeIndices;
+};
+
+struct LevelShapeFeature {
+    int shapeIndex = -1;
+    const CamShape* shape = nullptr;
+    ShapeFeaturePaths paths;
+};
+
+struct MachiningLevelPaths {
+    int levelIndex = -1;
+    double depth = 0.0;
+    int belowShapeId = -1;
+    const CamShape* materialShape = nullptr;
+
+    std::vector<AnalyticalPath> materialOutline;
+    std::vector<AnalyticalPath> materialCutZoneInner;
+    std::vector<AnalyticalPath> materialToolPath;
+    std::vector<AnalyticalPath> materialCutZoneOuter;
+
+    std::vector<LevelShapeFeature> shapes;
+
+    bool empty() const {
+        return shapes.empty() && materialOutline.empty();
+    }
+};
+
+const CamShape* findShapeBelow(
+    const DxfModel& model,
+    const CamPart& part,
+    const CamShape& targetShape);
+
+std::vector<MachiningLevel> computePartMachiningLevels(
+    const DxfModel& model,
+    const CamPart& part);
+
 SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
     const DxfModel& model,
     const CamPart& part,
     int selectedShapeIdx,
+    double toolDiameter,
+    double overcutPercent);
+
+MachiningLevelPaths computeMachiningLevelPaths(
+    const DxfModel& model,
+    const CamPart& part,
+    const MachiningLevel& level,
     double toolDiameter,
     double overcutPercent);
 

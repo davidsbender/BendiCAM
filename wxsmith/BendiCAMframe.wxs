@@ -2,7 +2,7 @@
 <wxsmith>
 	<object class="wxFrame" name="BendiCAMFrame">
 		<title>BendiCAM</title>
-		<size>927,578</size>
+		<size>927,770</size>
 		<id_arg>0</id_arg>
 		<style>wxDEFAULT_FRAME_STYLE|wxBORDER_DOUBLE</style>
 		<handler function="OnClose" entry="EVT_CLOSE" />
@@ -87,13 +87,13 @@
 		</object>
 		<object class="wxStaticBox" name="ID_STATICBOX2" variable="StaticBoxStatus" member="yes">
 			<label>Status</label>
-			<pos>24,400</pos>
-			<size>879,136</size>
+			<pos>16,664</pos>
+			<size>896,96</size>
 		</object>
 		<object class="wxTextCtrl" name="ID_TEXTCTRL1" variable="TextCtrlStatus" member="yes">
 			<value>Running&#x0A;</value>
-			<pos>40,424</pos>
-			<size>847,96</size>
+			<pos>24,680</pos>
+			<size>880,64</size>
 			<style>wxTE_MULTILINE|wxVSCROLL</style>
 		</object>
 		<object class="wxStaticBox" name="ID_STATICBOX5" variable="StaticBoxTool" member="yes">

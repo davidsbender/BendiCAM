@@ -2010,15 +2010,18 @@
 
 1753049580 c:\wxwidgets-3.3.1\include\wx\qt\statbox.h
 
-1795173030 source:c:\users\david\desktop\bendicam\bendicamapp.cpp
+1795243933 source:c:\users\david\desktop\bendicam\bendicamapp.cpp
 	"BendiCAMApp.h"
 	"BendiCAMMain.h"
 	<wx/image.h>
+	<wx/filename.h>
+	<wx/msgdlg.h>
+	<iostream>
 
 1795173027 c:\users\david\desktop\bendicam\bendicamapp.h
 	<wx/app.h>
 
-1795212136 c:\users\david\desktop\bendicam\bendicammain.h
+1795551262 c:\users\david\desktop\bendicam\bendicammain.h
 	<wx/button.h>
 	<wx/checkbox.h>
 	<wx/checklst.h>
@@ -2042,6 +2045,7 @@
 	<hidsdi.h>
 	<hidpi.h>
 	"DxfParser.h"
+	"AnalyticalToolpath.h"
 	"JoystickCalibration.h"
 	"SteeringWheelCtrl.h"
 	"PositionBarCtrl.h"
@@ -2065,7 +2069,7 @@
 	<wx/pen.h>
 	<wx/math.h>
 
-1795213709 source:c:\users\david\desktop\bendicam\bendicammain.cpp
+1795627956 source:c:\users\david\desktop\bendicam\bendicammain.cpp
 	"BendiCAMMain.h"
 	<wx/msgdlg.h>
 	<mmsystem.h>
@@ -2312,4 +2316,18 @@
 1753049580 c:\wxwidgets-3.3.1\include\wx\sizer.h
 	"wx/defs.h"
 	"wx/window.h"
+
+1795553695 c:\users\david\desktop\bendicam\include\analyticaltoolpath.h
+	"DxfParser.h"
+	<vector>
+	<set>
+	<string>
+	<cmath>
+	<algorithm>
+	<fstream>
+	<iostream>
+	<cstdint>
+
+1795554037 source:c:\users\david\desktop\bendicam\src\analyticaltoolpath.cpp
+	"AnalyticalToolpath.h"
 

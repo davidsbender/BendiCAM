@@ -1482,6 +1482,106 @@ std::vector<AnalyticalPath> getShapeAnalyticalPaths(const DxfModel& model, const
     return paths;
 }
 
+const CamShape* findShapeBelow(
+    const DxfModel& model,
+    const CamPart& part,
+    const CamShape& targetShape)
+{
+    const CamShape* resultShape = nullptr;
+    double maxBelowDepth = -1.0;
+    double targetDepth = targetShape.depth;
+
+    auto targetAnalyticalPaths = getShapeAnalyticalPaths(model, targetShape);
+    std::vector<DxfPoint> targetSamplePts;
+    for (const auto& sp : targetAnalyticalPaths) {
+        auto pts = sampleAnalyticalPath(sp, 0.5);
+        targetSamplePts.insert(targetSamplePts.end(), pts.begin(), pts.end());
+    }
+
+    for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
+        const auto& candidateShape = part.shapes[sIdx];
+        if (candidateShape.shapeId == targetShape.shapeId) continue;
+        if (candidateShape.depth < targetDepth - 1e-4) {
+            auto candPaths = getShapeAnalyticalPaths(model, candidateShape);
+            bool surrounds = false;
+            if (!targetSamplePts.empty() && !candPaths.empty()) {
+                int insideCount = 0;
+                for (const auto& pt : targetSamplePts) {
+                    for (const auto& cPath : candPaths) {
+                        if (isPointInsideAnalyticalPath(pt, cPath)) { insideCount++; break; }
+                    }
+                }
+                if ((double)insideCount / targetSamplePts.size() > 0.5) surrounds = true;
+            }
+            if (surrounds) {
+                if (resultShape == nullptr || candidateShape.depth > maxBelowDepth) {
+                    resultShape = &candidateShape;
+                    maxBelowDepth = candidateShape.depth;
+                }
+            }
+        }
+    }
+
+    if (!resultShape) {
+        for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
+            const auto& candidateShape = part.shapes[sIdx];
+            if (candidateShape.shapeId == targetShape.shapeId) continue;
+            if (candidateShape.depth < targetDepth - 1e-4) {
+                if (resultShape == nullptr || candidateShape.depth > maxBelowDepth) {
+                    resultShape = &candidateShape;
+                    maxBelowDepth = candidateShape.depth;
+                }
+            }
+        }
+    }
+
+    return resultShape;
+}
+
+std::vector<MachiningLevel> computePartMachiningLevels(
+    const DxfModel& model,
+    const CamPart& part)
+{
+    std::vector<MachiningLevel> levels;
+    if (part.shapes.empty()) return levels;
+
+    for (int sIdx = 0; sIdx < (int)part.shapes.size(); ++sIdx) {
+        const auto& shape = part.shapes[sIdx];
+        const CamShape* shapeBelow = findShapeBelow(model, part, shape);
+        int belowId = shapeBelow ? shapeBelow->shapeId : -1;
+        double depth = shape.depth;
+
+        bool found = false;
+        for (auto& lvl : levels) {
+            if (std::abs(lvl.depth - depth) < 1e-4 && lvl.belowShapeId == belowId) {
+                lvl.shapeIndices.push_back(sIdx);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            MachiningLevel newLvl;
+            newLvl.depth = depth;
+            newLvl.belowShapeId = belowId;
+            newLvl.shapeIndices.push_back(sIdx);
+            levels.push_back(newLvl);
+        }
+    }
+
+    std::sort(levels.begin(), levels.end(), [](const MachiningLevel& a, const MachiningLevel& b) {
+        if (std::abs(a.depth - b.depth) > 1e-4) {
+            return a.depth > b.depth;
+        }
+        return a.belowShapeId < b.belowShapeId;
+    });
+
+    for (size_t i = 0; i < levels.size(); ++i) {
+        levels[i].levelIndex = (int)(i + 1);
+    }
+
+    return levels;
+}
+
 SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
     const DxfModel& model,
     const CamPart& part,
@@ -1538,59 +1638,7 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
         }
     }
 
-    // Helper lambda to find the shape below a given target shape
-    auto findShapeBelow = [&](const CamShape& targetShape, const std::vector<AnalyticalPath>& targetPaths, const std::vector<DxfPoint>& targetSamplePts) -> const CamShape* {
-        const CamShape* resultShape = nullptr;
-        double maxBelowDepth = -1.0;
-        double targetDepth = targetShape.depth;
-
-        for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
-            const auto& candidateShape = part.shapes[sIdx];
-            if (candidateShape.shapeId == targetShape.shapeId) continue;
-            if (candidateShape.depth < targetDepth - 1e-4) {
-                auto candPaths = getShapeAnalyticalPaths(model, candidateShape);
-                bool surrounds = false;
-                if (!targetSamplePts.empty() && !candPaths.empty()) {
-                    int insideCount = 0;
-                    for (const auto& pt : targetSamplePts) {
-                        for (const auto& cPath : candPaths) {
-                            if (isPointInsideAnalyticalPath(pt, cPath)) { insideCount++; break; }
-                        }
-                    }
-                    if ((double)insideCount / targetSamplePts.size() > 0.5) surrounds = true;
-                }
-                if (surrounds) {
-                    if (resultShape == nullptr || candidateShape.depth > maxBelowDepth) {
-                        resultShape = &candidateShape;
-                        maxBelowDepth = candidateShape.depth;
-                    }
-                }
-            }
-        }
-
-        if (!resultShape) {
-            for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
-                const auto& candidateShape = part.shapes[sIdx];
-                if (candidateShape.shapeId == targetShape.shapeId) continue;
-                if (candidateShape.depth < targetDepth - 1e-4) {
-                    if (resultShape == nullptr || candidateShape.depth > maxBelowDepth) {
-                        resultShape = &candidateShape;
-                        maxBelowDepth = candidateShape.depth;
-                    }
-                }
-            }
-        }
-
-        return resultShape;
-    };
-
-    std::vector<DxfPoint> selSamplePts;
-    for (const auto& sp : selAnalyticalPaths) {
-        auto pts = sampleAnalyticalPath(sp, 0.5);
-        selSamplePts.insert(selSamplePts.end(), pts.begin(), pts.end());
-    }
-
-    const CamShape* shapeBelow = findShapeBelow(selShape, selAnalyticalPaths, selSamplePts);
+    const CamShape* shapeBelow = findShapeBelow(model, part, selShape);
 
     if (shapeBelow != nullptr) {
         auto belowPaths = getShapeAnalyticalPaths(model, *shapeBelow);
@@ -1760,7 +1808,7 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
             if (candSamplePts.empty()) continue;
 
             // Check if candidate's base shape below is the same shapeBelow
-            const CamShape* candBelow = findShapeBelow(candidateShape, candPaths, candSamplePts);
+            const CamShape* candBelow = findShapeBelow(model, part, candidateShape);
             if (candBelow != nullptr && candBelow->shapeId == shapeBelow->shapeId) {
                 ShapeFeaturePaths islandPaths;
                 for (const auto& path : candPaths) {
@@ -1804,4 +1852,249 @@ SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
     }
 
     return procPaths;
+}
+
+MachiningLevelPaths computeMachiningLevelPaths(
+    const DxfModel& model,
+    const CamPart& part,
+    const MachiningLevel& level,
+    double toolDiameter,
+    double overcutPercent)
+{
+    MachiningLevelPaths machPaths;
+    machPaths.levelIndex = level.levelIndex;
+    machPaths.depth = level.depth;
+    machPaths.belowShapeId = level.belowShapeId;
+
+    if (part.shapes.empty()) {
+        return machPaths;
+    }
+
+    if (toolDiameter <= 1e-4) toolDiameter = 2.0;
+    if (overcutPercent < 0.0) overcutPercent = 30.0;
+    double toolRadius = toolDiameter * 0.5;
+
+    // 1. Resolve material shape below
+    const CamShape* shapeBelow = nullptr;
+    if (level.belowShapeId != -1) {
+        for (const auto& s : part.shapes) {
+            if (s.shapeId == level.belowShapeId) {
+                shapeBelow = &s;
+                break;
+            }
+        }
+    }
+    machPaths.materialShape = shapeBelow;
+
+    if (shapeBelow != nullptr) {
+        auto belowPaths = getShapeAnalyticalPaths(model, *shapeBelow);
+        double expansionFactor = (overcutPercent / 100.0) - 0.5;
+        double expansionDist = expansionFactor * toolDiameter;
+        double offsetDist = -expansionDist;
+
+        for (const auto& bPath : belowPaths) {
+            AnalyticalPath bLoop = bPath;
+            ensureLoopOrientation(bLoop, true);
+            bLoop.trace.sourcePartId = part.id;
+            bLoop.trace.sourceShapeId = shapeBelow->shapeId;
+            bLoop.trace.role = PathRole::MATERIAL_OUTLINE;
+            bLoop.trace.offsetDistance = 0.0;
+            bLoop.trace.entitySignature = computeEntitySignature(bLoop.trace.entityHash, 0.0);
+            bLoop.trace.geometrySignature = computeGeometrySignature(bLoop);
+            machPaths.materialOutline.push_back(bLoop);
+
+            AnalyticalPath rawToolPath = offsetAnalyticalPathRaw(bLoop, offsetDist);
+            if (rawToolPath.size() >= 2) {
+                AnalyticalPath cleanTpUnspurred = cleanDegeneratePrimitives(rawToolPath);
+                cleanTpUnspurred.trace = rawToolPath.trace;
+                cleanTpUnspurred.trace.sourcePartId = part.id;
+                cleanTpUnspurred.trace.sourceShapeId = shapeBelow->shapeId;
+                cleanTpUnspurred.trace.role = PathRole::MATERIAL_TOOLPATH;
+                cleanTpUnspurred.trace.offsetDistance = offsetDist;
+                cleanTpUnspurred.trace.entitySignature = computeEntitySignature(cleanTpUnspurred.trace.entityHash, offsetDist);
+                cleanTpUnspurred.trace.geometrySignature = computeGeometrySignature(cleanTpUnspurred);
+
+                if (cleanTpUnspurred.size() >= 2) {
+                    AnalyticalPath cleanTp = cleanTpUnspurred;
+                    std::vector<std::pair<DxfPoint, DxfPoint>> spursAtCorners; // stores (vertexPt, apexPt)
+
+                    if (overcutPercent < 50.0) {
+                        double spurDist = (0.5 - (overcutPercent / 100.0)) * toolDiameter;
+                        if (spurDist > 1e-4) {
+                            AnalyticalPath spurredPath;
+                            size_t numPrims = cleanTpUnspurred.size();
+                            for (size_t i = 0; i < numPrims; ++i) {
+                                const auto& prim1 = cleanTpUnspurred[i];
+                                const auto& prim2 = cleanTpUnspurred[(i + 1) % numPrims];
+                                spurredPath.push_back(prim1);
+
+                                DxfPoint t1 = getPrimitiveEndTangent(prim1);
+                                DxfPoint t2 = getPrimitiveStartTangent(prim2);
+                                double crossZ = t1.x * t2.y - t1.y * t2.x;
+                                double dot = t1.x * t2.x + t1.y * t2.y;
+                                double angleTurn = std::atan2(crossZ, dot);
+
+                                if (angleTurn > 1e-3) {
+                                    DxfPoint vertexPt = prim1.endPt;
+                                    DxfPoint n1(-t1.y, t1.x);
+                                    DxfPoint n2(-t2.y, t2.x);
+
+                                    double nx = -n1.x - n2.x;
+                                    double ny = -n1.y - n2.y;
+                                    double nLen = std::hypot(nx, ny);
+                                    if (nLen > 1e-6) {
+                                        nx /= nLen;
+                                        ny /= nLen;
+
+                                        double halfAngle = angleTurn * 0.5;
+                                        double cosHalf = std::cos(halfAngle);
+
+                                        if (cosHalf > 0.05) {
+                                            double spurTravelLen = spurDist * ((1.0 / cosHalf) - 1.0);
+
+                                            if (spurTravelLen > 1e-4) {
+                                                DxfPoint apexPt(vertexPt.x + nx * spurTravelLen,
+                                                               vertexPt.y + ny * spurTravelLen);
+
+                                                PathPrimitive s1 = PathPrimitive::CreateLine(vertexPt, apexPt);
+                                                PathPrimitive s2 = PathPrimitive::CreateLine(apexPt, vertexPt);
+                                                s1.isSpur = true;
+                                                s2.isSpur = true;
+                                                spurredPath.push_back(s1);
+                                                spurredPath.push_back(s2);
+
+                                                spursAtCorners.push_back({vertexPt, apexPt});
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            cleanTp = cleanDegeneratePrimitives(spurredPath);
+                        }
+                    }
+
+                    ensureLoopOrientation(cleanTp, true);
+                    cleanTp.trace = cleanTpUnspurred.trace;
+                    cleanTp.trace.geometrySignature = computeGeometrySignature(cleanTp);
+                    machPaths.materialToolPath.push_back(cleanTp);
+
+                    auto innerPaths = offsetAnalyticalPath(cleanTpUnspurred, toolRadius);
+                    for (auto inPath : innerPaths) {
+                        ensureLoopOrientation(inPath, true);
+                        inPath.trace.sourcePartId = part.id;
+                        inPath.trace.sourceShapeId = shapeBelow->shapeId;
+                        inPath.trace.role = PathRole::MATERIAL_CUTZONE_INNER;
+                        inPath.trace.offsetDistance = offsetDist + toolRadius;
+                        inPath.trace.entitySignature = computeEntitySignature(inPath.trace.entityHash, inPath.trace.offsetDistance);
+                        inPath.trace.geometrySignature = computeGeometrySignature(inPath);
+                        machPaths.materialCutZoneInner.push_back(inPath);
+                    }
+
+                    auto baseOuterPaths = offsetAnalyticalPath(cleanTpUnspurred, -toolRadius);
+
+                    if (overcutPercent < 50.0 && !spursAtCorners.empty() && !baseOuterPaths.empty()) {
+                        for (auto& outPath : baseOuterPaths) {
+                            for (auto& prim : outPath) {
+                                if (prim.type == PrimitiveType::ARC && prim.radius > 1e-6) {
+                                    for (const auto& sp : spursAtCorners) {
+                                        const DxfPoint& vPt = sp.first;
+                                        const DxfPoint& aPt = sp.second;
+                                        double dCenter = std::hypot(prim.center.x - vPt.x, prim.center.y - vPt.y);
+                                        if (dCenter < 1.0) {
+                                            prim.center = aPt;
+                                            prim.radius = toolRadius;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    for (auto outPath : baseOuterPaths) {
+                        ensureLoopOrientation(outPath, true);
+                        outPath.trace.sourcePartId = part.id;
+                        outPath.trace.sourceShapeId = shapeBelow->shapeId;
+                        outPath.trace.role = PathRole::MATERIAL_CUTZONE_OUTER;
+                        outPath.trace.offsetDistance = offsetDist - toolRadius;
+                        outPath.trace.entitySignature = computeEntitySignature(outPath.trace.entityHash, outPath.trace.offsetDistance);
+                        outPath.trace.geometrySignature = computeGeometrySignature(outPath);
+                        machPaths.materialCutZoneOuter.push_back(outPath);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Compute Level Shape Features
+    std::set<int> addedShapeIndices;
+
+    auto addShapeFeature = [&](int sIdx) {
+        if (sIdx < 0 || sIdx >= (int)part.shapes.size()) return;
+        if (addedShapeIndices.count(sIdx)) return;
+        addedShapeIndices.insert(sIdx);
+
+        const auto& shape = part.shapes[sIdx];
+        LevelShapeFeature feat;
+        feat.shapeIndex = sIdx;
+        feat.shape = &shape;
+
+        auto sPaths = getShapeAnalyticalPaths(model, shape);
+        for (const auto& path : sPaths) {
+            AnalyticalPath loop = path;
+            ensureLoopOrientation(loop, true);
+            loop.trace.sourcePartId = part.id;
+            loop.trace.sourceShapeId = shape.shapeId;
+            loop.trace.role = PathRole::SHAPE_OUTLINE;
+            loop.trace.offsetDistance = 0.0;
+            loop.trace.entitySignature = computeEntitySignature(loop.trace.entityHash, 0.0);
+            loop.trace.geometrySignature = computeGeometrySignature(loop);
+            feat.paths.shapeOutline.push_back(loop);
+
+            auto tPaths = offsetAnalyticalPath(loop, -toolRadius);
+            for (auto tp : tPaths) {
+                ensureLoopOrientation(tp, true);
+                tp.trace.sourcePartId = part.id;
+                tp.trace.sourceShapeId = shape.shapeId;
+                tp.trace.role = PathRole::SHAPE_TOOLPATH;
+                tp.trace.offsetDistance = -toolRadius;
+                tp.trace.entitySignature = computeEntitySignature(tp.trace.entityHash, -toolRadius);
+                tp.trace.geometrySignature = computeGeometrySignature(tp);
+                feat.paths.shapeToolPath.push_back(tp);
+            }
+
+            auto cPaths = offsetAnalyticalPath(loop, -toolDiameter);
+            for (auto cp : cPaths) {
+                ensureLoopOrientation(cp, true);
+                cp.trace.sourcePartId = part.id;
+                cp.trace.sourceShapeId = shape.shapeId;
+                cp.trace.role = PathRole::SHAPE_CUTZONE;
+                cp.trace.offsetDistance = -toolDiameter;
+                cp.trace.entitySignature = computeEntitySignature(cp.trace.entityHash, -toolDiameter);
+                cp.trace.geometrySignature = computeGeometrySignature(cp);
+                feat.paths.shapeCutZone.push_back(cp);
+            }
+        }
+
+        machPaths.shapes.push_back(feat);
+    };
+
+    for (int sIdx : level.shapeIndices) {
+        addShapeFeature(sIdx);
+    }
+
+    if (shapeBelow != nullptr) {
+        for (size_t sIdx = 0; sIdx < part.shapes.size(); ++sIdx) {
+            if (addedShapeIndices.count((int)sIdx)) continue;
+            const auto& candidateShape = part.shapes[sIdx];
+            if (candidateShape.shapeId == shapeBelow->shapeId) continue;
+            if (candidateShape.depth <= shapeBelow->depth + 1e-4) continue;
+
+            const CamShape* candBelow = findShapeBelow(model, part, candidateShape);
+            if (candBelow != nullptr && candBelow->shapeId == shapeBelow->shapeId) {
+                addShapeFeature((int)sIdx);
+            }
+        }
+    }
+
+    return machPaths;
 }
