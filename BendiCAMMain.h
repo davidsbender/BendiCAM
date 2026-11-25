@@ -262,6 +262,7 @@ class BendiCAMFrame: public wxFrame
         int m_selectedShapeInPartIndex = -1;
         int m_selectedMachiningLevelIndex = -1;
         int m_nextPartId = 1;
+        std::vector<ShapePaths> m_partShapePaths;
         SelectedShapeProcessingPaths m_procPaths;
         MachiningLevelPaths m_machPaths;
 

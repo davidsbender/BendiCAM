@@ -55,3 +55,118 @@ Run `mingw32-make` with `Makefile.win`:
 $env:PATH = "C:\Program Files\CodeBlocks\MinGW\bin;" + $env:PATH
 mingw32-make -f Makefile.win release
 ```
+
+---
+
+## Dual-Role CAM Geometry Architecture
+
+In 2.5D machining, CAD shapes are inherently **role-fluid**. A CAD shape (`CamShape`) is a purely geometric entity defined by closed DXF entity loops and an extrusion depth. In CAM operations, however, a shape takes on distinct roles depending on the machining context:
+
+```
+                  ┌───────────────────────────────────────────┐
+                  │            CamShape (CAD Geometry)        │
+                  │       (id, depth, DXF entity indices)     │
+                  └─────────────────────┬─────────────────────┘
+                                        │
+                         Intrinsic Path Generation
+                       (toolDiameter, overcutPercent)
+                                        │
+                  ┌─────────────────────┴─────────────────────┐
+                  │                 ShapePaths                │
+                  │   ┌───────────────────┬────────────────┐  │
+                  │   │    IslandPaths    │ MaterialPaths  │  │
+                  │   │   (Obstacle/Boss) │ (Floor/Stock)  │  │
+                  │   └───────────────────┴────────────────┘  │
+                  └─────────────────────┬─────────────────────┘
+                                        │
+                           Context-Driven Usage
+                                        │
+           ┌────────────────────────────┴────────────────────────────┐
+           ▼                                                         ▼
+┌──────────────────────────────┐          ┌──────────────────────────────────────┐
+│     Part Definition Mode     │          │            Machining Mode            │
+│  - Focused Shape -> Island   │          │  - Floor Shape   -> Material         │
+│  - Below Shape   -> Material │          │  - Level Shapes  -> Array of Islands │
+│  - Siblings      -> Islands  │          └──────────────────────────────────────┘
+└──────────────────────────────┘
+```
+
+For example, in a multi-tiered part with a Base Plate, Lower Pocket, and Raised Island:
+- When cutting the pocket down to the Base Plate, the Base Plate is the **Material (Floor)**.
+- When contouring out the Base Plate itself, it acts as the **Shape / Island**.
+- The Lower Pocket acts as an **Island** relative to the Base Plate, but becomes the **Material (Floor)** for features milled on top of it.
+
+### 1. Dual-Role Sub-Structures
+
+Because all 7 analytical paths depend strictly on the shape's boundary and the tool configuration (`toolDiameter`, `overcutPercent`), a shape's paths are intrinsic to the shape itself and are computed once:
+
+#### A. `IslandPaths` (Role: Obstacle / Boss to Preserve)
+When a shape rises above a floor, the cutter must clear material around it while preserving the shape:
+* **`outline`**: The nominal unoffset CAD boundary loop.
+* **`toolPath`**: Offset inward by tool radius ($r = D/2$).
+* **`cutZone`**: Offset inward by tool diameter ($D$), defining the boundary of material cleared by the toolpath.
+
+#### B. `MaterialPaths` (Role: Floor / Stock to Clear)
+When a shape serves as the floor platform being cleared down to, the cutter operates within its boundaries:
+* **`outline`**: The nominal unoffset CAD boundary loop.
+* **`toolPath`**: Offset inward or outward based on the overcut setting ($E = (\text{overcut}\% / 100 - 0.5) \times D$). When $\text{overcut}\% < 50\%$, automatic out-and-back bisector spurs are added at concave corners to eliminate uncut cusps.
+* **`cutZoneInner`**: Un-spurred toolpath offset inward by tool radius ($r$).
+* **`cutZoneOuter`**: Un-spurred toolpath offset outward by tool radius ($r$), with apex arcs around corner spurs.
+
+#### C. `ShapePaths` (Complete Dual-Role Package)
+Groups the source CAD shape pointer, shape ID, and both role structures:
+```cpp
+struct ShapePaths {
+    int shapeId = -1;
+    const CamShape* shape = nullptr;
+    IslandPaths   island;    // 3 paths when acting as an Island / Boss
+    MaterialPaths material;  // 4 paths when acting as Material / Floor
+};
+```
+
+---
+
+### 2. Relational Level & Processing Representation (Zero Redundancy)
+
+Because shapes own their dual-role toolpaths, operations and machining levels no longer copy or recompute geometry—they simply act as relational coordinators using non-owning pointers:
+
+```cpp
+// Machining Level: 1 Material Floor + N Islands
+struct MachiningLevelPaths {
+    int levelIndex = -1;
+    double depth = 0.0;
+    int belowShapeId = -1;
+
+    const ShapePaths* material = nullptr;       // The floor shape (nullptr for raw stock)
+    std::vector<const ShapePaths*> islands;     // All shapes/islands on this level
+};
+
+// Part Definition: Single Shape Focus
+struct SelectedShapeProcessingPaths {
+    const ShapePaths* shape = nullptr;           // Primary selected shape (Island role)
+    const ShapePaths* material = nullptr;        // Shape below (Material role)
+    std::vector<const ShapePaths*> islandShapes; // Sibling obstacles on same floor (Island role)
+};
+```
+
+---
+
+### 3. Viewport Coloring & Visual Hierarchy
+
+The 2D drawing viewport automatically adapts its rendering depending on whether the user is in **Part Definition** or **Machining** mode:
+
+| Mode | Visual Element | Role | Pen Color | Palette |
+| :--- | :--- | :--- | :--- | :--- |
+| **Machining Mode** | Material Outline / Cut Zones | Material Floor | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
+| | Material Toolpath | Material Floor | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
+| | Level Shapes Outline / Cut Zones | Islands | Light Amber (`#FFAF28`) | `wxColour(255, 175, 40)` |
+| | Level Shapes Toolpath | Islands | Light Blue (`#4182F5`) | `wxColour(65, 130, 245)` |
+| **Part Definition Mode** | Primary Shape Outline / Cut Zones | Selected Island | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
+| | Primary Shape Toolpath | Selected Island | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
+| | Material Base Outline / Cut Zones | Floor | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
+| | Material Base Toolpath | Floor | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
+| | Sibling Shapes Outline / Cut Zones | Sibling Islands | Bright Amber (`#FFAF28`) | `wxColour(255, 175, 40)` |
+| | Sibling Shapes Toolpath | Sibling Islands | Bright Blue (`#4182F5`) | `wxColour(65, 130, 245)` |
+
+* Circular vertex dots are rendered at every segment and arc endpoint, matching the stroke color of their respective paths for instant geometric inspection.
+

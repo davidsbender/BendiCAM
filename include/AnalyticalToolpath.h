@@ -131,19 +131,39 @@ struct AnalyticalPath : public std::vector<PathPrimitive> {
     using std::vector<PathPrimitive>::vector;
 };
 
-struct ShapeFeaturePaths {
-    std::vector<AnalyticalPath> shapeOutline;
-    std::vector<AnalyticalPath> shapeToolPath;
-    std::vector<AnalyticalPath> shapeCutZone;
+// Dual-Role Toolpath Structures
+struct IslandPaths {
+    std::vector<AnalyticalPath> outline;
+    std::vector<AnalyticalPath> toolPath;
+    std::vector<AnalyticalPath> cutZone;
+
+    bool empty() const { return outline.empty(); }
+};
+
+struct MaterialPaths {
+    std::vector<AnalyticalPath> outline;
+    std::vector<AnalyticalPath> toolPath;
+    std::vector<AnalyticalPath> cutZoneInner;
+    std::vector<AnalyticalPath> cutZoneOuter;
+
+    bool empty() const { return outline.empty(); }
+};
+
+struct ShapePaths {
+    int shapeId = -1;
+    const CamShape* shape = nullptr;
+    IslandPaths   island;    // 3 paths when acting as an Island / Boss
+    MaterialPaths material;  // 4 paths when acting as Material / Floor
 };
 
 struct SelectedShapeProcessingPaths {
-    ShapeFeaturePaths shape;
-    std::vector<AnalyticalPath> materialOutline;       // empty if no lower shape
-    std::vector<AnalyticalPath> materialCutZoneInner;  // empty if no lower shape
-    std::vector<AnalyticalPath> materialToolPath;      // empty if no lower shape
-    std::vector<AnalyticalPath> materialCutZoneOuter;  // empty if no lower shape
-    std::vector<ShapeFeaturePaths> islandShapes;       // empty if no island shapes
+    const ShapePaths* shape = nullptr;           // Primary selected shape (Island role)
+    const ShapePaths* material = nullptr;        // Shape below acting as Material floor
+    std::vector<const ShapePaths*> islandShapes; // Sibling shapes on same floor (Island role)
+
+    bool empty() const {
+        return shape == nullptr && material == nullptr;
+    }
 };
 
 // Geometry & Utility Functions
@@ -206,27 +226,19 @@ struct MachiningLevel {
     std::vector<int> shapeIndices;
 };
 
-struct LevelShapeFeature {
-    int shapeIndex = -1;
-    const CamShape* shape = nullptr;
-    ShapeFeaturePaths paths;
-};
-
 struct MachiningLevelPaths {
     int levelIndex = -1;
     double depth = 0.0;
     int belowShapeId = -1;
-    const CamShape* materialShape = nullptr;
 
-    std::vector<AnalyticalPath> materialOutline;
-    std::vector<AnalyticalPath> materialCutZoneInner;
-    std::vector<AnalyticalPath> materialToolPath;
-    std::vector<AnalyticalPath> materialCutZoneOuter;
+    // Pointer to the shape acting as the Floor / Material (nullptr if raw stock boundary)
+    const ShapePaths* material = nullptr;
 
-    std::vector<LevelShapeFeature> shapes;
+    // Pointers to all shapes acting as Islands on this floor
+    std::vector<const ShapePaths*> islands;
 
     bool empty() const {
-        return shapes.empty() && materialOutline.empty();
+        return islands.empty() && material == nullptr;
     }
 };
 
@@ -239,19 +251,31 @@ std::vector<MachiningLevel> computePartMachiningLevels(
     const DxfModel& model,
     const CamPart& part);
 
+// Dual-role path generators
+ShapePaths computeShapePaths(
+    const DxfModel& model,
+    const CamPart& part,
+    const CamShape& shape,
+    double toolDiameter,
+    double overcutPercent);
+
+std::vector<ShapePaths> computeAllPartShapePaths(
+    const DxfModel& model,
+    const CamPart& part,
+    double toolDiameter,
+    double overcutPercent);
+
 SelectedShapeProcessingPaths computeSelectedShapeProcessingPaths(
     const DxfModel& model,
     const CamPart& part,
     int selectedShapeIdx,
-    double toolDiameter,
-    double overcutPercent);
+    const std::vector<ShapePaths>& allShapePaths);
 
 MachiningLevelPaths computeMachiningLevelPaths(
     const DxfModel& model,
     const CamPart& part,
     const MachiningLevel& level,
-    double toolDiameter,
-    double overcutPercent);
+    const std::vector<ShapePaths>& allShapePaths);
 
 void emitAnalyticalLoopGCode(std::ofstream& out, const AnalyticalPath& path,
                             double prevZ, double curZ, double feedZ, double feedXY, double retractZ,

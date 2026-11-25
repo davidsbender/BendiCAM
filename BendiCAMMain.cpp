@@ -1990,6 +1990,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         if (toolDiameter <= 1e-4) toolDiameter = 2.0;
         if (overcutPercent < 0.0) overcutPercent = 30.0;
 
+        m_partShapePaths.clear();
         m_procPaths = SelectedShapeProcessingPaths();
         m_machPaths = MachiningLevelPaths();
 
@@ -1997,6 +1998,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
 
         if (m_selectedPartIndex >= 0 && m_selectedPartIndex < (int)m_parts.size()) {
             const auto& part = m_parts[m_selectedPartIndex];
+            m_partShapePaths = computeAllPartShapePaths(m_dxfModel, part, toolDiameter, overcutPercent);
 
             if (isMachiningMode) {
                 auto levels = computePartMachiningLevels(m_dxfModel, part);
@@ -2014,7 +2016,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                 }
 
                 if (targetLevel) {
-                    m_machPaths = computeMachiningLevelPaths(m_dxfModel, part, *targetLevel, toolDiameter, overcutPercent);
+                    m_machPaths = computeMachiningLevelPaths(m_dxfModel, part, *targetLevel, m_partShapePaths);
 
                     // Render the machining level paths and their vertices
                     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
@@ -2054,42 +2056,43 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                         };
 
                         // 1. Material (lower shape) paths: Dark Amber & Dark Blue
-                        drawPaths(m_machPaths.materialOutline, colDarkAmber, true);
-                        drawPaths(m_machPaths.materialCutZoneInner, colDarkAmber, true);
-                        drawPaths(m_machPaths.materialToolPath, colDarkBlue, true);
-                        drawPaths(m_machPaths.materialCutZoneOuter, colDarkAmber, true);
+                        if (m_machPaths.material) {
+                            const auto& mat = m_machPaths.material->material;
+                            drawPaths(mat.outline, colDarkAmber, true);
+                            drawPaths(mat.cutZoneInner, colDarkAmber, true);
+                            drawPaths(mat.toolPath, colDarkBlue, true);
+                            drawPaths(mat.cutZoneOuter, colDarkAmber, true);
 
-                        // 2. All Shapes on this level: Light Amber & Light Blue
-                        for (const auto& feat : m_machPaths.shapes) {
-                            drawPaths(feat.paths.shapeOutline, colLightAmber, true);
-                            drawPaths(feat.paths.shapeCutZone, colLightAmber, true);
-                            drawPaths(feat.paths.shapeToolPath, colLightBlue, true);
+                            drawVertices(mat.outline, colDarkAmber);
+                            drawVertices(mat.cutZoneInner, colDarkAmber);
+                            drawVertices(mat.toolPath, colDarkBlue);
+                            drawVertices(mat.cutZoneOuter, colDarkAmber);
                         }
 
-                        // Material Vertices
-                        drawVertices(m_machPaths.materialOutline, colDarkAmber);
-                        drawVertices(m_machPaths.materialCutZoneInner, colDarkAmber);
-                        drawVertices(m_machPaths.materialToolPath, colDarkBlue);
-                        drawVertices(m_machPaths.materialCutZoneOuter, colDarkAmber);
+                        // 2. All Shapes (islands) on this level: Light Amber & Light Blue
+                        for (const auto* island : m_machPaths.islands) {
+                            if (!island) continue;
+                            const auto& isl = island->island;
+                            drawPaths(isl.outline, colLightAmber, true);
+                            drawPaths(isl.cutZone, colLightAmber, true);
+                            drawPaths(isl.toolPath, colLightBlue, true);
 
-                        // Shape Vertices
-                        for (const auto& feat : m_machPaths.shapes) {
-                            drawVertices(feat.paths.shapeOutline, colLightAmber);
-                            drawVertices(feat.paths.shapeCutZone, colLightAmber);
-                            drawVertices(feat.paths.shapeToolPath, colLightBlue);
+                            drawVertices(isl.outline, colLightAmber);
+                            drawVertices(isl.cutZone, colLightAmber);
+                            drawVertices(isl.toolPath, colLightBlue);
                         }
                     }
                 }
             } else {
                 int shapeIdx = (m_selectedShapeInPartIndex >= 0 && m_selectedShapeInPartIndex < (int)part.shapes.size()) ? m_selectedShapeInPartIndex : 0;
                 if (!part.shapes.empty() && shapeIdx >= 0 && shapeIdx < (int)part.shapes.size()) {
-                    m_procPaths = computeSelectedShapeProcessingPaths(m_dxfModel, part, shapeIdx, toolDiameter, overcutPercent);
+                    m_procPaths = computeSelectedShapeProcessingPaths(m_dxfModel, part, shapeIdx, m_partShapePaths);
 
                     // Render the paths and their vertices
                     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
                     if (gc) {
-                        wxColour colAmber(230, 100, 0);       // Dark amber
-                        wxColour colBlue(0, 0, 180);          // Dark blue
+                        wxColour colAmber(230, 100, 0);        // Dark amber
+                        wxColour colBlue(0, 0, 180);           // Dark blue
                         wxColour colBrightAmber(255, 175, 40); // Bright amber (islands)
                         wxColour colBrightBlue(65, 130, 245);  // Bright blue (islands toolpath)
 
@@ -2122,40 +2125,43 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                             }
                         };
 
-                        // 1. Main selected shape paths
-                        drawPaths(m_procPaths.shape.shapeOutline, colAmber, true);          // 1. ShapeOutline
-                        drawPaths(m_procPaths.shape.shapeToolPath, colBlue, true);          // 2. ShapeToolPath
-                        drawPaths(m_procPaths.shape.shapeCutZone, colAmber, true);          // 3. ShapeCutZone
+                        // 1. Main selected shape paths (Island role)
+                        if (m_procPaths.shape) {
+                            const auto& shp = m_procPaths.shape->island;
+                            drawPaths(shp.outline, colAmber, true);          // 1. ShapeOutline
+                            drawPaths(shp.toolPath, colBlue, true);          // 2. ShapeToolPath
+                            drawPaths(shp.cutZone, colAmber, true);          // 3. ShapeCutZone
 
-                        // 2. Material (lower shape) paths
-                        drawPaths(m_procPaths.materialOutline, colAmber, true);       // 4. MaterialOutline
-                        drawPaths(m_procPaths.materialCutZoneInner, colAmber, true);  // 5. MaterialCutZoneInner
-                        drawPaths(m_procPaths.materialToolPath, colBlue, true);       // 6. MaterialToolPath
-                        drawPaths(m_procPaths.materialCutZoneOuter, colAmber, true);  // 7. MaterialCutZoneOuter
-
-                        // 3. Island shapes paths (brighter dashed line to make main shape and material more prominent)
-                        for (const auto& island : m_procPaths.islandShapes) {
-                            drawPaths(island.shapeOutline, colBrightAmber, true);
-                            drawPaths(island.shapeToolPath, colBrightBlue, true);
-                            drawPaths(island.shapeCutZone, colBrightAmber, true);
+                            drawVertices(shp.outline, colAmber);
+                            drawVertices(shp.toolPath, colBlue);
+                            drawVertices(shp.cutZone, colAmber);
                         }
 
-                        // Vertices for main selected shape paths
-                        drawVertices(m_procPaths.shape.shapeOutline, colAmber);
-                        drawVertices(m_procPaths.shape.shapeToolPath, colBlue);
-                        drawVertices(m_procPaths.shape.shapeCutZone, colAmber);
+                        // 2. Material (lower shape) paths
+                        if (m_procPaths.material) {
+                            const auto& mat = m_procPaths.material->material;
+                            drawPaths(mat.outline, colAmber, true);       // 4. MaterialOutline
+                            drawPaths(mat.cutZoneInner, colAmber, true);  // 5. MaterialCutZoneInner
+                            drawPaths(mat.toolPath, colBlue, true);       // 6. MaterialToolPath
+                            drawPaths(mat.cutZoneOuter, colAmber, true);  // 7. MaterialCutZoneOuter
 
-                        // Vertices for material paths
-                        drawVertices(m_procPaths.materialOutline, colAmber);
-                        drawVertices(m_procPaths.materialCutZoneInner, colAmber);
-                        drawVertices(m_procPaths.materialToolPath, colBlue);
-                        drawVertices(m_procPaths.materialCutZoneOuter, colAmber);
+                            drawVertices(mat.outline, colAmber);
+                            drawVertices(mat.cutZoneInner, colAmber);
+                            drawVertices(mat.toolPath, colBlue);
+                            drawVertices(mat.cutZoneOuter, colAmber);
+                        }
 
-                        // Vertices for island shapes paths
-                        for (const auto& island : m_procPaths.islandShapes) {
-                            drawVertices(island.shapeOutline, colBrightAmber);
-                            drawVertices(island.shapeToolPath, colBrightBlue);
-                            drawVertices(island.shapeCutZone, colBrightAmber);
+                        // 3. Island shapes paths (brighter dashed line to make main shape and material more prominent)
+                        for (const auto* island : m_procPaths.islandShapes) {
+                            if (!island) continue;
+                            const auto& isl = island->island;
+                            drawPaths(isl.outline, colBrightAmber, true);
+                            drawPaths(isl.toolPath, colBrightBlue, true);
+                            drawPaths(isl.cutZone, colBrightAmber, true);
+
+                            drawVertices(isl.outline, colBrightAmber);
+                            drawVertices(isl.toolPath, colBrightBlue);
+                            drawVertices(isl.cutZone, colBrightAmber);
                         }
                     }
                 }
