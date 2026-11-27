@@ -2092,27 +2092,54 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                             drawVertices(isl.toolPath, colLightBlue);
                         }
 
-                        // 3. Derived Machining Pockets (Solid Lines): Cleared Floor Boundaries & Island Limits
-                        wxColour colMachPocket(0, 140, 240); // Solid Vibrant Blue for resulting pocket boundary
-                        wxColour colMachIsland(240, 120, 0); // Solid Warm Amber for resulting island boundary
-                        for (const auto& pocket : m_levelMachiningPaths.pockets) {
-                            if (!pocket.outerBoundary.empty()) {
-                                std::vector<AnalyticalPath> outerList = { pocket.outerBoundary };
-                                drawPaths(outerList, colMachPocket, false);
-                                drawVertices(outerList, colMachPocket);
+                        // 3. Dual-Domain Level Floor Clearing Zones
+                        if (!m_levelMachiningPaths.clearingZones.empty()) {
+                            const auto& zones = m_levelMachiningPaths.clearingZones;
+                            wxColour colReqCoverage(240, 130, 0);     // Solid Warm Amber for mandatory floor coverage
+                            wxColour colAllowedOuter(80, 180, 240);   // Dashed Soft Cyan for allowed outer roaming boundary
+                            wxColour colAllowedObstacle(230, 80, 80); // Dashed Soft Red for hard boss avoidance boundaries (+R)
+
+                            // A. Allowed Roaming Envelope (Dashed Guides)
+                            if (!zones.allowedEnvelope.outerBoundaries.empty()) {
+                                drawPaths(zones.allowedEnvelope.outerBoundaries, colAllowedOuter, true);
                             }
-                            if (!pocket.islandBoundaries.empty()) {
-                                drawPaths(pocket.islandBoundaries, colMachIsland, false);
-                                drawVertices(pocket.islandBoundaries, colMachIsland);
+                            if (!zones.allowedEnvelope.holeBoundaries.empty()) {
+                                drawPaths(zones.allowedEnvelope.holeBoundaries, colAllowedObstacle, true);
+                            }
+
+                            // B. Required Target Coverage (Solid Amber)
+                            if (!zones.requiredCoverage.outerBoundaries.empty()) {
+                                drawPaths(zones.requiredCoverage.outerBoundaries, colReqCoverage, false);
+                                drawVertices(zones.requiredCoverage.outerBoundaries, colReqCoverage);
+                            }
+                            if (!zones.requiredCoverage.holeBoundaries.empty()) {
+                                drawPaths(zones.requiredCoverage.holeBoundaries, colReqCoverage, false);
+                                drawVertices(zones.requiredCoverage.holeBoundaries, colReqCoverage);
+                            }
+                        } else {
+                            // Fallback: Legacy Derived Machining Pockets
+                            wxColour colMachPocket(0, 140, 240); // Solid Vibrant Blue for resulting pocket boundary
+                            wxColour colMachIsland(240, 120, 0); // Solid Warm Amber for resulting island boundary
+                            for (const auto& pocket : m_levelMachiningPaths.pockets) {
+                                if (!pocket.outerBoundary.empty()) {
+                                    std::vector<AnalyticalPath> outerList = { pocket.outerBoundary };
+                                    drawPaths(outerList, colMachPocket, false);
+                                    drawVertices(outerList, colMachPocket);
+                                }
+                                if (!pocket.islandBoundaries.empty()) {
+                                    drawPaths(pocket.islandBoundaries, colMachIsland, false);
+                                    drawVertices(pocket.islandBoundaries, colMachIsland);
+                                }
                             }
                         }
 
-                        // 4. Concrete Boss Outline Milling Toolpaths (Solid Lines, e.g. root bosses on datum floor)
+                        // 4. Concrete Boss Outline Milling Toolpaths (Solid Vibrant Blue Lines)
+                        wxColour colMachBoss(0, 140, 240); // Solid Vibrant Blue
                         for (const auto& bossPath : m_levelMachiningPaths.bossToolpaths) {
                             if (!bossPath.empty()) {
                                 std::vector<AnalyticalPath> bossList = { bossPath };
-                                drawPaths(bossList, colMachPocket, false);
-                                drawVertices(bossList, colMachPocket);
+                                drawPaths(bossList, colMachBoss, false);
+                                drawVertices(bossList, colMachBoss);
                             }
                         }
                     }

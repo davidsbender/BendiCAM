@@ -61,3 +61,19 @@ I think we have a redundancy here:
 		ShapeFeaturePaths paths;           // shapeOutline, shapeToolPath, shapeCutZone
 	};
 The ShapeFeaturePaths exist already.
+
+1. Default strategy: yes, mode 2 as default. Mode 1 may be a "high speed" alternative avoiding redundant paths at the cost of worse finish.
+2. Oh, great idea! Love it! Not for now, but give me TODO I can paste into TODO.md.\ 
+3. Run at every stepdown. The coarse / finish pass idea is great, but not for now. Give me a TODO for pasting into TODO.md.
+I generally want to go ahead in small development steps - so as good ideas emerge, we may have to postpone them to later to keep steps small.
+But we gather them in TODO.md because they are great, so keep them coming.
+
+1. If we use analytical paths for the boundaries, this is generic enough for any strategy, so we don't have to decide yet. Correct?
+2. Same as 1.: generic approach lets us do that later. Correct?
+3. Yes, absolutely. This should be the next step. It is not yet time to think about further passes.
+
+Also, there is the possible "high speed mode" with spurs. That mode may use the exact same approach. The clearing zones will look slight different, but the exact same concept applies, too.
+
+Create a plan for this and save it.
+
+Collect topics discussed but not being part of this plan and save them to a TODO file.

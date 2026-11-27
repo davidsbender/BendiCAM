@@ -5,6 +5,32 @@
 #include "AnalyticalBoolean.h"
 #include <vector>
 
+// Generic 2D planar domain represented as outer loop(s) with hole(s)
+struct ClearingDomain {
+    // Outer boundary loops (tool center must stay INSIDE)
+    std::vector<AnalyticalPath> outerBoundaries;
+
+    // Hole / obstacle loops (tool center must stay OUTSIDE)
+    std::vector<AnalyticalPath> holeBoundaries;
+
+    bool empty() const {
+        return outerBoundaries.empty() && holeBoundaries.empty();
+    }
+};
+
+// Dual-domain geometric descriptors for level floor clearing
+struct LevelClearingZones {
+    // 1. Hard safety envelope: cutter has complete freedom to roam here
+    ClearingDomain allowedEnvelope;
+
+    // 2. Mandatory target coverage: must be completely evacuated
+    ClearingDomain requiredCoverage;
+
+    bool empty() const {
+        return allowedEnvelope.empty() && requiredCoverage.empty();
+    }
+};
+
 struct MachiningPocket {
     AnalyticalPath outerBoundary;                 // CCW (pocket outer boundary)
     std::vector<AnalyticalPath> islandBoundaries; // CCW (boss obstacles inside this pocket)
@@ -28,13 +54,18 @@ struct LevelMachiningToolpaths {
     // Derived discrete pockets to clear on this level floor
     std::vector<MachiningPocket> pockets;
 
-    // Concrete boss outline milling toolpaths (e.g. root bosses on datum floor)
+    // Concrete boss wall outline milling toolpaths (always run at level stepdowns)
     std::vector<AnalyticalPath> bossToolpaths;
+
+    // Dual-domain clearing descriptors for floor clearing
+    LevelClearingZones clearingZones;
 
     // Infill passes (optional concentric or raster toolpaths)
     std::vector<AnalyticalPath> infillToolPaths;
 
-    bool empty() const { return pockets.empty() && bossToolpaths.empty(); }
+    bool empty() const {
+        return pockets.empty() && bossToolpaths.empty() && clearingZones.empty();
+    }
 };
 
 // Orchestrates boolean subtraction of all islands from the material boundary for a level

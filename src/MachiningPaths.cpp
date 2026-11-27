@@ -12,21 +12,74 @@ LevelMachiningToolpaths computeLevelMachiningToolpaths(
     result.depth = levelPaths.depth;
     result.belowShapeId = levelPaths.belowShapeId;
 
+    // 1. Collect concrete boss wall outline milling toolpaths for EVERY boss/island on this level
+    for (const auto* island : levelPaths.islands) {
+        if (!island || island->island.toolPath.empty()) continue;
+        for (const auto& bossLoop : island->island.toolPath) {
+            if (bossLoop.size() < 2) continue;
+            AnalyticalPath cleanBoss = bossLoop;
+            ensureLoopOrientation(cleanBoss, true);
+            result.bossToolpaths.push_back(cleanBoss);
+        }
+    }
+
     if (!levelPaths.material || levelPaths.material->material.toolPath.empty()) {
         // No floor/material shape below: this level's shapes are root bosses on the datum bed (Z = 0)
-        for (const auto* island : levelPaths.islands) {
-            if (!island || island->island.toolPath.empty()) continue;
-            for (const auto& bossLoop : island->island.toolPath) {
-                if (bossLoop.size() < 2) continue;
-                AnalyticalPath cleanBoss = bossLoop;
-                ensureLoopOrientation(cleanBoss, true);
-                result.bossToolpaths.push_back(cleanBoss);
-            }
-        }
         return result;
     }
 
-    // 1. Initialize active pockets with the material/floor toolpaths
+    // 2. Compute the Two Geometric Clearing Domains for Floor Clearing
+    // A. allowedEnvelope (hard safety roaming boundary)
+    // Outer: floor boundary expanded into stock clearance/air
+    if (!levelPaths.material->material.cutZoneOuter.empty()) {
+        for (const auto& loop : levelPaths.material->material.cutZoneOuter) {
+            if (loop.size() < 2) continue;
+            AnalyticalPath cleanLoop = loop;
+            ensureLoopOrientation(cleanLoop, true);
+            result.clearingZones.allowedEnvelope.outerBoundaries.push_back(cleanLoop);
+        }
+    } else {
+        for (const auto& loop : levelPaths.material->material.toolPath) {
+            if (loop.size() < 2) continue;
+            AnalyticalPath cleanLoop = loop;
+            ensureLoopOrientation(cleanLoop, true);
+            result.clearingZones.allowedEnvelope.outerBoundaries.push_back(cleanLoop);
+        }
+    }
+
+    // Holes: boss walls offset outward by tool radius +R (cutter center must stay outside)
+    for (const auto* island : levelPaths.islands) {
+        if (!island || island->island.toolPath.empty()) continue;
+        for (const auto& loop : island->island.toolPath) {
+            if (loop.size() < 2) continue;
+            AnalyticalPath cleanLoop = loop;
+            ensureLoopOrientation(cleanLoop, true);
+            result.clearingZones.allowedEnvelope.holeBoundaries.push_back(cleanLoop);
+        }
+    }
+
+    // B. requiredCoverage (mandatory target floor platform to evacuate)
+    // Outer: floor shape boundary offset by tool overcut
+    for (const auto& loop : levelPaths.material->material.toolPath) {
+        if (loop.size() < 2) continue;
+        AnalyticalPath cleanLoop = loop;
+        ensureLoopOrientation(cleanLoop, true);
+        result.clearingZones.requiredCoverage.outerBoundaries.push_back(cleanLoop);
+    }
+
+    // Holes: boss cut zones (+2R) where boss outline pass takes over
+    for (const auto* island : levelPaths.islands) {
+        if (!island) continue;
+        const auto& cutZones = !island->island.cutZone.empty() ? island->island.cutZone : island->island.toolPath;
+        for (const auto& loop : cutZones) {
+            if (loop.size() < 2) continue;
+            AnalyticalPath cleanLoop = loop;
+            ensureLoopOrientation(cleanLoop, true);
+            result.clearingZones.requiredCoverage.holeBoundaries.push_back(cleanLoop);
+        }
+    }
+
+    // 3. (Legacy/Transitional) Initialize active pockets with boolean subtraction
     std::vector<MachiningPocket> activePockets;
     for (const auto& mLoop : levelPaths.material->material.toolPath) {
         if (mLoop.size() < 2) continue;
