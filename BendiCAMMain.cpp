@@ -418,6 +418,7 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
         return chk;
     };
 
+    CheckBoxShowFloorClearing   = createMachiningCheckBox(_("Floor clearing toolpath (infillToolPaths)"));
     CheckBoxShowBossToolpaths   = createMachiningCheckBox(_("Boss toolpath (bossToolpaths)"));
     CheckBoxShowClearedArea     = createMachiningCheckBox(_("Cleared area outline (requiredCoverage)"));
     CheckBoxShowStockToolpath   = createMachiningCheckBox(_("Stock toolpath (material.toolPath)"));
@@ -593,7 +594,7 @@ void BendiCAMFrame::LayoutMachiningTab()
     if (mw <= 20 || mh <= 20) return;
 
     int boxW = mw - 8;
-    int dispH = 206;
+    int dispH = 226;
     int minPartsH = 60;
     int partsH = 60;
     if (mh - dispH - 10 < minPartsH) {
@@ -617,6 +618,7 @@ void BendiCAMFrame::LayoutMachiningTab()
         StaticBoxMachiningDisplay->Lower();
 
         wxCheckBox* checkBoxes[] = {
+            CheckBoxShowFloorClearing,
             CheckBoxShowBossToolpaths,
             CheckBoxShowClearedArea,
             CheckBoxShowStockToolpath,
@@ -2063,13 +2065,17 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
         double toolDiameter = 2.0;
         double overcutPercent = 30.0;
         double bossMarginPercent = 20.0;
+        double stepoverPercent = 70.0;
         if (TextCtrlToolDiameter) TextCtrlToolDiameter->GetValue().ToDouble(&toolDiameter);
         if (TextCtrlToolOvercut) TextCtrlToolOvercut->GetValue().ToDouble(&overcutPercent);
         if (TextCtrlToolBossMargin) TextCtrlToolBossMargin->GetValue().ToDouble(&bossMarginPercent);
+        if (TextCtrlToolStepover) TextCtrlToolStepover->GetValue().ToDouble(&stepoverPercent);
         if (toolDiameter <= 1e-4) toolDiameter = 2.0;
         if (overcutPercent < 0.0) overcutPercent = 30.0;
         if (bossMarginPercent < 0.0) bossMarginPercent = 20.0;
         if (bossMarginPercent > 100.0) bossMarginPercent = 100.0;
+        if (stepoverPercent <= 0.0) stepoverPercent = 70.0;
+        if (stepoverPercent > 95.0) stepoverPercent = 95.0;
 
         m_partShapePaths.clear();
         m_procPaths = SelectedShapeProcessingPaths();
@@ -2099,7 +2105,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
 
                 if (targetLevel) {
                     m_machPaths = computeMachiningLevelPaths(m_dxfModel, part, *targetLevel, m_partShapePaths);
-                    m_levelMachiningPaths = computeLevelMachiningToolpaths(m_dxfModel, part, m_machPaths, toolDiameter, bossMarginPercent, overcutPercent);
+                    m_levelMachiningPaths = computeLevelMachiningToolpaths(m_dxfModel, part, m_machPaths, toolDiameter, bossMarginPercent, overcutPercent, stepoverPercent);
 
                     // Render the machining level paths and their vertices
                     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
@@ -2146,6 +2152,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                             }
                         };
 
+                        bool showFloorClearing   = !CheckBoxShowFloorClearing || CheckBoxShowFloorClearing->IsChecked();
                         bool showStockOutline    = !CheckBoxShowStockOutline || CheckBoxShowStockOutline->IsChecked();
                         bool showStockCutZone    = !CheckBoxShowStockCutZone || CheckBoxShowStockCutZone->IsChecked();
                         bool showStockToolpath   = !CheckBoxShowStockToolpath || CheckBoxShowStockToolpath->IsChecked();
@@ -2155,6 +2162,22 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                         bool showAllowedEnvelope = !CheckBoxShowAllowedEnvelope || CheckBoxShowAllowedEnvelope->IsChecked();
                         bool showClearedArea     = !CheckBoxShowClearedArea || CheckBoxShowClearedArea->IsChecked();
                         bool showBossToolpaths   = !CheckBoxShowBossToolpaths || CheckBoxShowBossToolpaths->IsChecked();
+
+                        // 0. Floor Clearing Infill Toolpaths (Light pastel slate blue in perceived background)
+                        if (showFloorClearing && !m_levelMachiningPaths.infillToolPaths.empty()) {
+                            wxColour colFloorClearing(175, 195, 215);
+                            gc->SetPen(wxPen(colFloorClearing, 1, wxPENSTYLE_SOLID));
+                            gc->SetBrush(*wxTRANSPARENT_BRUSH);
+                            for (const auto& path : m_levelMachiningPaths.infillToolPaths) {
+                                if (path.empty()) continue;
+                                wxGraphicsPath gpath = gc->CreatePath();
+                                gpath.MoveToPoint(ToScreen(path[0].startPt.x, path[0].startPt.y));
+                                for (const auto& prim : path) {
+                                    gpath.AddLineToPoint(ToScreen(prim.endPt.x, prim.endPt.y));
+                                }
+                                gc->StrokePath(gpath);
+                            }
+                        }
 
                         // 1. Material (lower shape) paths: Dark Amber & Dark Blue
                         if (m_machPaths.material) {

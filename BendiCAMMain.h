@@ -197,6 +197,7 @@ class BendiCAMFrame: public wxFrame
         wxStaticBox* StaticBoxPartsMachining = nullptr;
         wxTreeCtrl* TreeCtrlPartsMachining = nullptr;
         wxStaticBox* StaticBoxMachiningDisplay = nullptr;
+        wxCheckBox* CheckBoxShowFloorClearing = nullptr;
         wxCheckBox* CheckBoxShowBossToolpaths = nullptr;
         wxCheckBox* CheckBoxShowClearedArea = nullptr;
         wxCheckBox* CheckBoxShowStockToolpath = nullptr;

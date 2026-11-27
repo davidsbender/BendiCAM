@@ -1,5 +1,10 @@
 # TODO
 
+## Infill for clear milling
+
+Toolpath creation does not get requiredCoverage outerBoundaries vs. holeBoundaries right.
+It does apply clear milling if (is inside hole boundary) AND (is outside outer boundary).
+
 ## Sharp Machining Corner Spurs Along Boss Toolpath
 
 When a boss toolpath clips against a material floor boundary (e.g. where a boss meets or crosses the edge of a pocket floor or stock boundary), an out-and-back spur following that boss toolpath is required to completely clear the corner down to the floor depth.

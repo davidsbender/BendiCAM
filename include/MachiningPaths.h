@@ -68,6 +68,12 @@ struct LevelMachiningToolpaths {
     }
 };
 
+// Generates zig-zag floor clearing toolpaths covering requiredCoverage with optimal angle
+std::vector<AnalyticalPath> generateFloorClearingToolpaths(
+    const LevelClearingZones& zones,
+    double toolDiameter = 2.0,
+    double stepoverPercent = 70.0);
+
 // Orchestrates boolean subtraction of all islands from the material boundary for a level
 LevelMachiningToolpaths computeLevelMachiningToolpaths(
     const DxfModel& model,
@@ -75,7 +81,8 @@ LevelMachiningToolpaths computeLevelMachiningToolpaths(
     const MachiningLevelPaths& levelPaths,
     double toolDiameter = 2.0,
     double bossAvoidancePercent = 20.0,
-    double overcutPercent = 30.0);
+    double overcutPercent = 30.0,
+    double stepoverPercent = 70.0);
 
 // Batch compute for all levels in a part
 std::vector<LevelMachiningToolpaths> computeAllPartMachiningToolpaths(

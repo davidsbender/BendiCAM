@@ -157,7 +157,8 @@ The 2D drawing viewport automatically adapts its rendering depending on whether 
 
 | Mode | Visual Element | Role | Pen Color | Palette |
 | :--- | :--- | :--- | :--- | :--- |
-| **Machining Mode** | Material Outline / Cut Zones | Material Floor | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
+| **Machining Mode** | Floor Clearing Toolpath | Infill Passes (Background) | Light Pastel Slate Blue | `wxColour(175, 195, 215)` |
+| | Material Outline / Cut Zones | Material Floor | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
 | | Material Toolpath | Material Floor | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
 | | Level Shapes Outline / Cut Zones | Islands | Light Amber (`#FFAF28`) | `wxColour(255, 175, 40)` |
 | | Level Shapes Toolpath | Islands | Light Blue (`#4182F5`) | `wxColour(65, 130, 245)` |

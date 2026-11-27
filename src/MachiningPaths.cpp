@@ -8,7 +8,8 @@ LevelMachiningToolpaths computeLevelMachiningToolpaths(
     const MachiningLevelPaths& levelPaths,
     double toolDiameter,
     double bossAvoidancePercent,
-    double overcutPercent)
+    double overcutPercent,
+    double stepoverPercent)
 {
     LevelMachiningToolpaths result;
     result.levelIndex = levelPaths.levelIndex;
@@ -190,7 +191,252 @@ LevelMachiningToolpaths computeLevelMachiningToolpaths(
     }
 
     result.pockets = activePockets;
+
+    // 4. Generate continuous zig-zag floor clearing toolpaths covering requiredCoverage
+    result.infillToolPaths = generateFloorClearingToolpaths(result.clearingZones, toolDiameter, stepoverPercent);
+
     return result;
+}
+
+static inline double distPt(const DxfPoint& a, const DxfPoint& b) {
+    return std::hypot(a.x - b.x, a.y - b.y);
+}
+
+static bool isPointOnArcSweepLocal(const DxfPoint& pt, const DxfPoint& center, double radius, const DxfPoint& sPt, const DxfPoint& ePt, bool isCCW, double tol = 1e-2) {
+    if (std::abs(distPt(pt, center) - radius) > tol) return false;
+    double a = std::atan2(pt.y - center.y, pt.x - center.x);
+    double a1 = std::atan2(sPt.y - center.y, sPt.x - center.x);
+    double a2 = std::atan2(ePt.y - center.y, ePt.x - center.x);
+    double da = a - a1;
+    double sweep = a2 - a1;
+    if (isCCW) {
+        while (da < -1e-4) da += 2.0 * M_PI;
+        while (sweep <= 1e-4) sweep += 2.0 * M_PI;
+        return (da <= sweep + 1e-3);
+    } else {
+        while (da > 1e-4) da -= 2.0 * M_PI;
+        while (sweep >= -1e-4) sweep -= 2.0 * M_PI;
+        return (std::abs(da) <= std::abs(sweep) + 1e-3);
+    }
+}
+
+static PathPrimitive rotatePrimitiveLocal(const PathPrimitive& p, double cosA, double sinA) {
+    PathPrimitive r = p;
+    auto rot = [&](const DxfPoint& pt) {
+        return DxfPoint(pt.x * cosA + pt.y * sinA, -pt.x * sinA + pt.y * cosA);
+    };
+    r.startPt = rot(p.startPt);
+    r.endPt = rot(p.endPt);
+    if (p.type == PrimitiveType::ARC) {
+        r.center = rot(p.center);
+    }
+    return r;
+}
+
+static void intersectHLineLocal(double Y, const PathPrimitive& p, std::vector<double>& outX) {
+    if (p.type == PrimitiveType::LINE) {
+        double y1 = p.startPt.y, y2 = p.endPt.y;
+        double x1 = p.startPt.x, x2 = p.endPt.x;
+        if ((y1 < Y && y2 >= Y) || (y2 < Y && y1 >= Y)) {
+            double t = (Y - y1) / (y2 - y1);
+            outX.push_back(x1 + t * (x2 - x1));
+        }
+    } else if (p.type == PrimitiveType::ARC) {
+        double cy = p.center.y, cx = p.center.x, r = p.radius;
+        if (std::abs(Y - cy) < r - 1e-4) {
+            double dx = std::sqrt(r * r - (Y - cy) * (Y - cy));
+            DxfPoint ptA(cx - dx, Y);
+            DxfPoint ptB(cx + dx, Y);
+            if (isPointOnArcSweepLocal(ptA, p.center, r, p.startPt, p.endPt, p.isCCW)) outX.push_back(ptA.x);
+            if (isPointOnArcSweepLocal(ptB, p.center, r, p.startPt, p.endPt, p.isCCW)) outX.push_back(ptB.x);
+        }
+    }
+}
+
+struct ClearingCutSegment {
+    int passIdx;
+    double y;
+    double xStart;
+    double xEnd;
+    bool visited;
+};
+
+std::vector<AnalyticalPath> generateFloorClearingToolpaths(
+    const LevelClearingZones& zones,
+    double toolDiameter,
+    double stepoverPercent)
+{
+    std::vector<AnalyticalPath> result;
+    if (zones.requiredCoverage.outerBoundaries.empty()) return result;
+
+    if (toolDiameter <= 1e-4) toolDiameter = 2.0;
+    if (stepoverPercent <= 0.0) stepoverPercent = 70.0;
+    if (stepoverPercent > 95.0) stepoverPercent = 95.0;
+
+    double maxStepover = (stepoverPercent / 100.0) * toolDiameter;
+
+    double minTotalLength = 1e12;
+    std::vector<AnalyticalPath> bestPaths;
+
+    for (int deg = 0; deg < 180; deg += 10) {
+        double rad = deg * M_PI / 180.0;
+        double cosA = std::cos(rad), sinA = std::sin(rad);
+
+        std::vector<PathPrimitive> allPrims;
+        double minY = 1e9, maxY = -1e9;
+        for (const auto& loop : zones.requiredCoverage.outerBoundaries) {
+            for (const auto& p : loop) {
+                auto rp = rotatePrimitiveLocal(p, cosA, sinA);
+                allPrims.push_back(rp);
+                minY = std::min({minY, rp.startPt.y, rp.endPt.y});
+                maxY = std::max({maxY, rp.startPt.y, rp.endPt.y});
+            }
+        }
+        for (const auto& loop : zones.requiredCoverage.holeBoundaries) {
+            for (const auto& p : loop) {
+                auto rp = rotatePrimitiveLocal(p, cosA, sinA);
+                allPrims.push_back(rp);
+            }
+        }
+
+        if (maxY - minY <= 1e-4) continue;
+
+        int N = std::max(1, (int)std::ceil((maxY - minY) / maxStepover));
+        double actualStep = (maxY - minY) / N;
+
+        std::vector<ClearingCutSegment> segments;
+        for (int i = 0; i < N; ++i) {
+            double Y = minY + (i + 0.5) * actualStep;
+            std::vector<double> xs;
+            for (const auto& p : allPrims) intersectHLineLocal(Y, p, xs);
+            std::sort(xs.begin(), xs.end());
+            std::vector<double> uXs;
+            for (double x : xs) {
+                if (uXs.empty() || std::abs(x - uXs.back()) > 1e-3) uXs.push_back(x);
+            }
+            for (size_t k = 0; k + 1 < uXs.size(); k += 2) {
+                if (uXs[k+1] - uXs[k] > 1e-3) {
+                    segments.push_back({i, Y, uXs[k], uXs[k+1], false});
+                }
+            }
+        }
+
+        if (segments.empty()) continue;
+
+        std::vector<AnalyticalPath> paths;
+        AnalyticalPath currentPath;
+        double totalCutLen = 0.0;
+        double totalLinkLen = 0.0;
+        size_t visitedCount = 0;
+        DxfPoint curPt(0, 0);
+        int curPass = -1;
+        int passDir = 1;
+        bool hasCur = false;
+
+        auto unrot = [&](double x, double y) {
+            return DxfPoint(x * cosA - y * sinA, x * sinA + y * cosA);
+        };
+
+        while (visitedCount < segments.size()) {
+            int bestSegIdx = -1;
+            bool enterFromLeft = true;
+            double bestDist = 1e12;
+
+            if (!hasCur) {
+                for (size_t s = 0; s < segments.size(); ++s) {
+                    if (!segments[s].visited) {
+                        bestSegIdx = (int)s;
+                        enterFromLeft = true;
+                        passDir = 1;
+                        break;
+                    }
+                }
+            } else {
+                int targetPass = curPass + passDir;
+                for (size_t s = 0; s < segments.size(); ++s) {
+                    if (segments[s].visited || segments[s].passIdx != targetPass) continue;
+                    DxfPoint pL(segments[s].xStart, segments[s].y);
+                    DxfPoint pR(segments[s].xEnd, segments[s].y);
+                    double dL = distPt(curPt, pL);
+                    double dR = distPt(curPt, pR);
+                    if (dL < bestDist) { bestDist = dL; bestSegIdx = (int)s; enterFromLeft = true; }
+                    if (dR < bestDist) { bestDist = dR; bestSegIdx = (int)s; enterFromLeft = false; }
+                }
+
+                if (bestSegIdx < 0) {
+                    targetPass = curPass - passDir;
+                    for (size_t s = 0; s < segments.size(); ++s) {
+                        if (segments[s].visited || segments[s].passIdx != targetPass) continue;
+                        DxfPoint pL(segments[s].xStart, segments[s].y);
+                        DxfPoint pR(segments[s].xEnd, segments[s].y);
+                        double dL = distPt(curPt, pL);
+                        double dR = distPt(curPt, pR);
+                        if (dL < bestDist) { bestDist = dL; bestSegIdx = (int)s; enterFromLeft = true; }
+                        if (dR < bestDist) { bestDist = dR; bestSegIdx = (int)s; enterFromLeft = false; }
+                    }
+                    if (bestSegIdx >= 0) passDir = -passDir;
+                }
+
+                if (bestSegIdx < 0) {
+                    for (size_t s = 0; s < segments.size(); ++s) {
+                        if (segments[s].visited) continue;
+                        DxfPoint pL(segments[s].xStart, segments[s].y);
+                        DxfPoint pR(segments[s].xEnd, segments[s].y);
+                        double dL = distPt(curPt, pL);
+                        double dR = distPt(curPt, pR);
+                        if (dL < bestDist) { bestDist = dL; bestSegIdx = (int)s; enterFromLeft = true; }
+                        if (dR < bestDist) { bestDist = dR; bestSegIdx = (int)s; enterFromLeft = false; }
+                    }
+                    passDir = 1;
+                }
+            }
+
+            if (bestSegIdx < 0) break;
+
+            auto& seg = segments[bestSegIdx];
+            seg.visited = true;
+            visitedCount++;
+
+            DxfPoint entryPt = enterFromLeft ? DxfPoint(seg.xStart, seg.y) : DxfPoint(seg.xEnd, seg.y);
+            DxfPoint exitPt  = enterFromLeft ? DxfPoint(seg.xEnd, seg.y)   : DxfPoint(seg.xStart, seg.y);
+
+            if (hasCur) {
+                double dLink = distPt(curPt, entryPt);
+                totalLinkLen += dLink;
+                if (dLink <= 2.5 * actualStep && std::abs(seg.passIdx - curPass) == 1) {
+                    PathPrimitive linkPrim;
+                    linkPrim.type = PrimitiveType::LINE;
+                    linkPrim.startPt = unrot(curPt.x, curPt.y);
+                    linkPrim.endPt = unrot(entryPt.x, entryPt.y);
+                    currentPath.push_back(linkPrim);
+                } else {
+                    if (!currentPath.empty()) paths.push_back(currentPath);
+                    currentPath.clear();
+                }
+            }
+
+            PathPrimitive cutPrim;
+            cutPrim.type = PrimitiveType::LINE;
+            cutPrim.startPt = unrot(entryPt.x, entryPt.y);
+            cutPrim.endPt = unrot(exitPt.x, exitPt.y);
+            currentPath.push_back(cutPrim);
+
+            totalCutLen += distPt(entryPt, exitPt);
+            curPt = exitPt;
+            curPass = seg.passIdx;
+            hasCur = true;
+        }
+
+        if (!currentPath.empty()) paths.push_back(currentPath);
+
+        double totalLen = totalCutLen + totalLinkLen;
+        if (totalLen < minTotalLength) {
+            minTotalLength = totalLen;
+            bestPaths = paths;
+        }
+    }
+
+    return bestPaths;
 }
 
 std::vector<LevelMachiningToolpaths> computeAllPartMachiningToolpaths(
