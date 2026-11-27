@@ -261,6 +261,90 @@ struct ClearingCutSegment {
     bool visited;
 };
 
+struct Interval1D {
+    double start;
+    double end;
+};
+
+static std::vector<Interval1D> mergeIntervals1D(std::vector<Interval1D> intervals) {
+    if (intervals.empty()) return {};
+    std::sort(intervals.begin(), intervals.end(), [](const Interval1D& a, const Interval1D& b) {
+        return a.start < b.start;
+    });
+    std::vector<Interval1D> merged;
+    merged.push_back(intervals[0]);
+    for (size_t i = 1; i < intervals.size(); ++i) {
+        if (intervals[i].start <= merged.back().end + 1e-4) {
+            merged.back().end = std::max(merged.back().end, intervals[i].end);
+        } else {
+            merged.push_back(intervals[i]);
+        }
+    }
+    return merged;
+}
+
+static std::vector<Interval1D> subtractIntervals1D(const std::vector<Interval1D>& outer, const std::vector<Interval1D>& holes) {
+    std::vector<Interval1D> current = outer;
+    for (const auto& h : holes) {
+        std::vector<Interval1D> next;
+        for (const auto& c : current) {
+            if (h.end <= c.start + 1e-4 || h.start >= c.end - 1e-4) {
+                // No overlap
+                next.push_back(c);
+            } else {
+                // Overlap: carve hole out of current interval
+                if (h.start > c.start + 1e-4) {
+                    next.push_back({c.start, h.start});
+                }
+                if (h.end < c.end - 1e-4) {
+                    next.push_back({h.end, c.end});
+                }
+            }
+        }
+        current = next;
+    }
+    std::vector<Interval1D> result;
+    for (const auto& inv : current) {
+        if (inv.end - inv.start > 1e-3) {
+            result.push_back(inv);
+        }
+    }
+    return result;
+}
+
+static void extractLoopIntervals1D(double Y, const std::vector<PathPrimitive>& loop, std::vector<Interval1D>& outIntervals) {
+    std::vector<double> xs;
+    for (const auto& p : loop) intersectHLineLocal(Y, p, xs);
+    if (xs.size() < 2) return;
+    std::sort(xs.begin(), xs.end());
+    std::vector<double> uXs;
+    for (double x : xs) {
+        if (uXs.empty() || std::abs(x - uXs.back()) > 1e-3) uXs.push_back(x);
+    }
+    if (uXs.size() % 2 != 0) {
+        std::vector<double> paired;
+        for (size_t k = 0; k < xs.size(); ++k) {
+            if (k + 1 < xs.size() && std::abs(xs[k+1] - xs[k]) < 0.05) {
+                k++; // Tangency touch: skip
+            } else {
+                if (paired.empty() || std::abs(xs[k] - paired.back()) > 1e-3) {
+                    paired.push_back(xs[k]);
+                }
+            }
+        }
+        if (paired.size() % 2 == 0) {
+            uXs = paired;
+        } else if (uXs.size() > 1) {
+            uXs.pop_back();
+        }
+    }
+    for (size_t k = 0; k + 1 < uXs.size(); k += 2) {
+        if (uXs[k+1] - uXs[k] > 1e-3) {
+            outIntervals.push_back({uXs[k], uXs[k+1]});
+        }
+    }
+}
+
 std::vector<AnalyticalPath> generateFloorClearingToolpaths(
     const LevelClearingZones& zones,
     double toolDiameter,
@@ -282,24 +366,37 @@ std::vector<AnalyticalPath> generateFloorClearingToolpaths(
         double rad = deg * M_PI / 180.0;
         double cosA = std::cos(rad), sinA = std::sin(rad);
 
-        std::vector<PathPrimitive> allPrims;
+        std::vector<std::vector<PathPrimitive>> rotOuterLoops;
+        rotOuterLoops.reserve(zones.requiredCoverage.outerBoundaries.size());
         double minY = 1e9, maxY = -1e9;
         for (const auto& loop : zones.requiredCoverage.outerBoundaries) {
+            std::vector<PathPrimitive> rotLoop;
+            rotLoop.reserve(loop.size());
             for (const auto& p : loop) {
                 auto rp = rotatePrimitiveLocal(p, cosA, sinA);
-                allPrims.push_back(rp);
+                rotLoop.push_back(rp);
                 minY = std::min({minY, rp.startPt.y, rp.endPt.y});
                 maxY = std::max({maxY, rp.startPt.y, rp.endPt.y});
+                if (rp.type == PrimitiveType::ARC) {
+                    minY = std::min(minY, rp.center.y - rp.radius);
+                    maxY = std::max(maxY, rp.center.y + rp.radius);
+                }
             }
-        }
-        for (const auto& loop : zones.requiredCoverage.holeBoundaries) {
-            for (const auto& p : loop) {
-                auto rp = rotatePrimitiveLocal(p, cosA, sinA);
-                allPrims.push_back(rp);
-            }
+            rotOuterLoops.push_back(rotLoop);
         }
 
-        if (maxY - minY <= 1e-4) continue;
+        if (rotOuterLoops.empty() || maxY - minY <= 1e-4) continue;
+
+        std::vector<std::vector<PathPrimitive>> rotHoleLoops;
+        rotHoleLoops.reserve(zones.requiredCoverage.holeBoundaries.size());
+        for (const auto& loop : zones.requiredCoverage.holeBoundaries) {
+            std::vector<PathPrimitive> rotLoop;
+            rotLoop.reserve(loop.size());
+            for (const auto& p : loop) {
+                rotLoop.push_back(rotatePrimitiveLocal(p, cosA, sinA));
+            }
+            rotHoleLoops.push_back(rotLoop);
+        }
 
         int N = std::max(1, (int)std::ceil((maxY - minY) / maxStepover));
         double actualStep = (maxY - minY) / N;
@@ -307,17 +404,26 @@ std::vector<AnalyticalPath> generateFloorClearingToolpaths(
         std::vector<ClearingCutSegment> segments;
         for (int i = 0; i < N; ++i) {
             double Y = minY + (i + 0.5) * actualStep;
-            std::vector<double> xs;
-            for (const auto& p : allPrims) intersectHLineLocal(Y, p, xs);
-            std::sort(xs.begin(), xs.end());
-            std::vector<double> uXs;
-            for (double x : xs) {
-                if (uXs.empty() || std::abs(x - uXs.back()) > 1e-3) uXs.push_back(x);
+
+            // 1. Collect candidate intervals strictly inside the outer boundary
+            std::vector<Interval1D> outerInv;
+            for (const auto& loop : rotOuterLoops) {
+                extractLoopIntervals1D(Y, loop, outerInv);
             }
-            for (size_t k = 0; k + 1 < uXs.size(); k += 2) {
-                if (uXs[k+1] - uXs[k] > 1e-3) {
-                    segments.push_back({i, Y, uXs[k], uXs[k+1], false});
-                }
+            outerInv = mergeIntervals1D(outerInv);
+            if (outerInv.empty()) continue;
+
+            // 2. Collect forbidden intervals strictly inside hole boundaries
+            std::vector<Interval1D> holeInv;
+            for (const auto& loop : rotHoleLoops) {
+                extractLoopIntervals1D(Y, loop, holeInv);
+            }
+            holeInv = mergeIntervals1D(holeInv);
+
+            // 3. Exact 1D interval subtraction: (Inside Outer) AND NOT (Inside Hole)
+            auto validSegs = subtractIntervals1D(outerInv, holeInv);
+            for (const auto& seg : validSegs) {
+                segments.push_back({i, Y, seg.start, seg.end, false});
             }
         }
 

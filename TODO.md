@@ -1,9 +1,78 @@
 # TODO
 
-## Infill for clear milling
+## Floor Clearing Cusp Prevention & High-Speed Boundary Linking along Boss/Island Outlines
 
-Toolpath creation does not get requiredCoverage outerBoundaries vs. holeBoundaries right.
-It does apply clear milling if (is inside hole boundary) AND (is outside outer boundary).
+### 1. Problem Statement & Root Cause Diagnosis
+- **The Early Termination / Disconnection Phenomenon:**
+  In floor clearing infill, parallel zig-zag passes terminate against curved island boundaries (e.g. in `examples/Kugellift simpel.dxf` Level 2, the vertical pass at $X = 374.989$ terminates at $Y = 155.796$ against the $R = 13.4\text{ mm}$ fillet arc, while the adjacent pass at $X = 373.599$ travels all the way to $Y = 200.958$).
+  - The 1D interval subtraction ($I_{\text{valid}} = I_{\text{outer}} \setminus I_{\text{hole}}$) correctly clips $X = 374.989$ because above $Y = 155.796$ that pass falls inside the forbidden hole boundary ($X_{\text{hole}} = 374.6\text{ mm}$).
+  - However, direct straight linking between $(374.989, 155.796)$ and $(373.599, 200.958)$ ($45.2\text{ mm}$) would slice straight through the solid island.
+  - The linker therefore breaks the path, causing **18 unnecessary retracts to Safe Z and re-plunges** on a single level floor (fragmenting infill into 19 isolated chains), and leaving a visible gap in the blue floor.
+
+- **The "Wrong-Side" Link Scallop & Mathematical Cusp Condition:**
+  In standard zig-zag rastering, every second link occurs on the "wrong side" (the far boundary). Between passes returning to the boss boundary, the tool does not travel along the boundary, leaving an unvisited gap along the wall proportional to stepover $S$.
+  - The envisioned boss wall finish pass (`bossToolpaths`) runs at distance $R = 0.5 D$ from the wall, reaching an outer cutting boundary of $D$ ($100\%$).
+  - Floor clearing stops at distance $M$ from the wall ($M = \text{boss margin} = D - \text{overcut} = 100\% - \text{overcut}$).
+  - The radial overlap between outline milling and floor clearing is $(D - M) = 100\% - M$.
+  - **The Zero-Cusp Threshold:**
+    $$\mathbf{S + M \le 100\%} \quad (\text{No Cusps Form})$$
+    $$\mathbf{S + M > 100\%} \quad (\text{Uncut Cusps Guaranteed to Form})$$
+    *Where $S = \text{Stepover}$ and $M = \text{Boss Margin} = (100\% - \text{Overcut})$.*
+  - For example, with default Stepover $= 70\%$ and Overcut $= 30\%$ ($M = 70\%$):
+    $$S + M = 70\% + 70\% = \mathbf{140\%} > 100\%$$
+    This leaves an uncut triangular cusp of up to **$0.151\text{ mm}$** along the fillet arc.
+  - Higher stepover (e.g. $95\%$) and larger boss margin (e.g. $30\%$) increase $S + M$ (e.g. $125\%$), widening the uncut gap.
+
+---
+
+### 2. The Two-Part Solution
+
+#### Part A: High-Speed Boundary Linking (Zero Retracts)
+- When adjacent zig-zag passes end against an obstacle boundary, do not break the chain and retract to Safe Z.
+- Instead, link the two endpoints by **gliding along the boundary contour** (`requiredCoverage.holeBoundaries` or `outerBoundaries`) inside `allowedEnvelope`.
+- Keeps the tool down at floor depth, merging fragmented chains into continuous machining loops, eliminating plunge dwell marks, and dramatically reducing cycle time.
+
+#### Part B: Outer Perimeter Loop on `requiredCoverage` (Zero Cusps at Any Stepover)
+- To guarantee $0.000\text{ mm}$ cusps when $S + M > 100\%$, run a dedicated **Floor Perimeter Loop** directly on `requiredCoverage.holeBoundaries` at floor depth.
+- **Clarification: Relationship between the Two Runs Around an Island:**
+  1. **Envisioned Outline Milling (`bossToolpaths`):**
+     - Runs at distance $0.5 D$ ($1.0\text{ mm}$ for $D = 2.0\text{ mm}$) from the boss wall.
+     - Cutter inner edge touches the wall ($0.0\text{ mm}$), outer edge reaches $1.0 D$ ($2.0\text{ mm}$).
+     - Dedicated finish pass at stepdown/final depth for wall precision.
+  2. **Floor Perimeter Loop (`requiredCoverage.holeBoundaries`):**
+     - A **second run around the island at floor depth, further outside**.
+     - Runs at distance $D - \text{overcut}$ ($1.4\text{ mm}$ for $30\%$ overcut).
+     - Cutter inner edge is at $0.4\text{ mm}$ (safely in open air, never touching or gouging the finished wall), outer edge reaches $2.4\text{ mm}$.
+     - Wipes across all jagged zig-zag ends and permanently seals the "wrong-side" gaps along curves and angles.
+
+#### Alternative Part B: Localized Boundary Spurs on the "Wrong Side" (Faster / Shorter Path)
+*(To be evaluated and discussed during implementation as an optimization over a full perimeter loop)*
+- **Concept:** Instead of a full $360^\circ$ outer perimeter loop around the island, emit out-and-back **boundary linking spurs** strictly on the "wrong side" where links are skipped.
+- **Selective Activation:**
+  - On straight walls perpendicular to zig-zag passes ($\theta \approx 90^\circ$), or where $S + M \le 100\%$, cusps do not form naturally. Zero spurs are emitted there.
+  - Spurs are only triggered locally where the angle between the pass and boundary is shallow (or along curved fillets) and $S + M > 100\%$.
+- **Execution:**
+  - Upon reaching the boss boundary on the unlinked side, the cutter steps outward along the `requiredCoverage` boundary curve towards the previous pass to evacuate the scallop apex, then retraces its path through empty air back to the pass endpoint before continuing down the zig-zag.
+  - Matches BendiCAM's existing out-and-back corner spur architecture (`PathPrimitive::hasEndSpur`).
+- **Speed Advantage:** Eliminates redundant air cutting along already-cleared straight wall segments, yielding a significantly shorter total path length and faster overall machining cycle time.
+
+---
+
+### 3. Implementation Steps in `src/MachiningPaths.cpp`
+1. **Perimeter Loop Integration:**
+   - In `generateFloorClearingToolpaths`, append closed loops from `zones.requiredCoverage.holeBoundaries` (and `outerBoundaries`) to the floor clearing toolpath.
+   - Eliminates all cusps regardless of high stepover or large boss margins.
+2. **Boundary-Tracing Linker:**
+   - In `generateFloorClearingToolpaths`, when `dLink > 2.5 * actualStep` and both points lie on a common boundary loop, trace the boundary primitive(s) between them instead of falling back to a retract/plunge chain break.
+3. **Verification:**
+   - Verify infill chain count on Level 2 drops from 19 disconnected chains to continuous loops.
+   - Verify uncut floor points drop to 0 across all stepover values ($50\% - 95\%$) and boss margins.
+
+---
+
+## allowedEnvelope around material too restrictive
+
+allowedEnvelope = material.cutZoneOuter expanded by tool radius is not enough (efficient?) for high overcut?
 
 ## Sharp Machining Corner Spurs Along Boss Toolpath
 
