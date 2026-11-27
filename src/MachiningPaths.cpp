@@ -5,12 +5,24 @@
 LevelMachiningToolpaths computeLevelMachiningToolpaths(
     const DxfModel& model,
     const CamPart& part,
-    const MachiningLevelPaths& levelPaths)
+    const MachiningLevelPaths& levelPaths,
+    double toolDiameter,
+    double bossAvoidancePercent,
+    double overcutPercent)
 {
     LevelMachiningToolpaths result;
     result.levelIndex = levelPaths.levelIndex;
     result.depth = levelPaths.depth;
     result.belowShapeId = levelPaths.belowShapeId;
+
+    double toolRadius = toolDiameter * 0.5;
+    if (bossAvoidancePercent < 0.0) bossAvoidancePercent = 0.0;
+    if (bossAvoidancePercent > 100.0) bossAvoidancePercent = 100.0;
+    double avoidanceMargin = (bossAvoidancePercent / 100.0) * toolDiameter;
+
+    if (overcutPercent < 0.0) overcutPercent = 0.0;
+    double overcutDist = (overcutPercent / 100.0) * toolDiameter;
+    double reqHoleOffset = std::max(0.0, toolDiameter - overcutDist);
 
     // 1. Collect concrete boss wall outline milling toolpaths for EVERY boss/island on this level
     for (const auto* island : levelPaths.islands) {
@@ -29,53 +41,95 @@ LevelMachiningToolpaths computeLevelMachiningToolpaths(
     }
 
     // 2. Compute the Two Geometric Clearing Domains for Floor Clearing
-    // A. allowedEnvelope (hard safety roaming boundary)
-    // Outer: floor boundary expanded into stock clearance/air
+    // A. allowedEnvelope (hard safety roaming boundary for cutter center)
+    // Outer: floor boundary expanded into stock clearance/air (+toolRadius)
     if (!levelPaths.material->material.cutZoneOuter.empty()) {
         for (const auto& loop : levelPaths.material->material.cutZoneOuter) {
             if (loop.size() < 2) continue;
-            AnalyticalPath cleanLoop = loop;
-            ensureLoopOrientation(cleanLoop, true);
-            result.clearingZones.allowedEnvelope.outerBoundaries.push_back(cleanLoop);
+            auto airLoops = offsetAnalyticalPath(loop, -toolRadius);
+            for (auto airLoop : airLoops) {
+                ensureLoopOrientation(airLoop, true);
+                result.clearingZones.allowedEnvelope.outerBoundaries.push_back(airLoop);
+            }
         }
     } else {
         for (const auto& loop : levelPaths.material->material.toolPath) {
             if (loop.size() < 2) continue;
-            AnalyticalPath cleanLoop = loop;
-            ensureLoopOrientation(cleanLoop, true);
-            result.clearingZones.allowedEnvelope.outerBoundaries.push_back(cleanLoop);
+            auto airLoops = offsetAnalyticalPath(loop, -2.0 * toolRadius);
+            for (auto airLoop : airLoops) {
+                ensureLoopOrientation(airLoop, true);
+                result.clearingZones.allowedEnvelope.outerBoundaries.push_back(airLoop);
+            }
         }
     }
 
-    // Holes: boss walls offset outward by tool radius +R (cutter center must stay outside)
+    // Holes: boss outline offset outward by avoidanceMargin (for zero margin, aligns exactly with boss outline)
     for (const auto* island : levelPaths.islands) {
-        if (!island || island->island.toolPath.empty()) continue;
-        for (const auto& loop : island->island.toolPath) {
-            if (loop.size() < 2) continue;
-            AnalyticalPath cleanLoop = loop;
-            ensureLoopOrientation(cleanLoop, true);
-            result.clearingZones.allowedEnvelope.holeBoundaries.push_back(cleanLoop);
+        if (!island || island->island.outline.empty()) continue;
+        const auto& baseLoops = island->island.outline;
+        if (avoidanceMargin <= 1e-6) {
+            for (const auto& loop : baseLoops) {
+                if (loop.size() < 2) continue;
+                AnalyticalPath cleanLoop = loop;
+                ensureLoopOrientation(cleanLoop, true);
+                result.clearingZones.allowedEnvelope.holeBoundaries.push_back(cleanLoop);
+            }
+        } else {
+            for (const auto& loop : baseLoops) {
+                if (loop.size() < 2) continue;
+                auto avoidLoops = offsetAnalyticalPath(loop, -avoidanceMargin);
+                if (avoidLoops.empty()) {
+                    AnalyticalPath cleanLoop = loop;
+                    ensureLoopOrientation(cleanLoop, true);
+                    result.clearingZones.allowedEnvelope.holeBoundaries.push_back(cleanLoop);
+                } else {
+                    for (auto avLoop : avoidLoops) {
+                        ensureLoopOrientation(avLoop, true);
+                        result.clearingZones.allowedEnvelope.holeBoundaries.push_back(avLoop);
+                    }
+                }
+            }
         }
     }
 
     // B. requiredCoverage (mandatory target floor platform to evacuate)
-    // Outer: floor shape boundary offset by tool overcut
-    for (const auto& loop : levelPaths.material->material.toolPath) {
+    // Outer: Stock outer cut zone
+    const auto& outerSources = !levelPaths.material->material.cutZoneOuter.empty()
+        ? levelPaths.material->material.cutZoneOuter
+        : levelPaths.material->material.toolPath;
+    for (const auto& loop : outerSources) {
         if (loop.size() < 2) continue;
         AnalyticalPath cleanLoop = loop;
         ensureLoopOrientation(cleanLoop, true);
         result.clearingZones.requiredCoverage.outerBoundaries.push_back(cleanLoop);
     }
 
-    // Holes: boss cut zones (+2R) where boss outline pass takes over
+    // Holes: island outline offset outwards by [toolDiameter - overcutDist]
     for (const auto* island : levelPaths.islands) {
-        if (!island) continue;
-        const auto& cutZones = !island->island.cutZone.empty() ? island->island.cutZone : island->island.toolPath;
-        for (const auto& loop : cutZones) {
-            if (loop.size() < 2) continue;
-            AnalyticalPath cleanLoop = loop;
-            ensureLoopOrientation(cleanLoop, true);
-            result.clearingZones.requiredCoverage.holeBoundaries.push_back(cleanLoop);
+        if (!island || island->island.outline.empty()) continue;
+        const auto& baseLoops = island->island.outline;
+        if (reqHoleOffset <= 1e-6) {
+            for (const auto& loop : baseLoops) {
+                if (loop.size() < 2) continue;
+                AnalyticalPath cleanLoop = loop;
+                ensureLoopOrientation(cleanLoop, true);
+                result.clearingZones.requiredCoverage.holeBoundaries.push_back(cleanLoop);
+            }
+        } else {
+            for (const auto& loop : baseLoops) {
+                if (loop.size() < 2) continue;
+                auto holeLoops = offsetAnalyticalPath(loop, -reqHoleOffset);
+                if (holeLoops.empty()) {
+                    AnalyticalPath cleanLoop = loop;
+                    ensureLoopOrientation(cleanLoop, true);
+                    result.clearingZones.requiredCoverage.holeBoundaries.push_back(cleanLoop);
+                } else {
+                    for (auto hLoop : holeLoops) {
+                        ensureLoopOrientation(hLoop, true);
+                        result.clearingZones.requiredCoverage.holeBoundaries.push_back(hLoop);
+                    }
+                }
+            }
         }
     }
 

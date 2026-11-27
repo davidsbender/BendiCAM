@@ -72,7 +72,10 @@ struct LevelMachiningToolpaths {
 LevelMachiningToolpaths computeLevelMachiningToolpaths(
     const DxfModel& model,
     const CamPart& part,
-    const MachiningLevelPaths& levelPaths);
+    const MachiningLevelPaths& levelPaths,
+    double toolDiameter = 2.0,
+    double bossAvoidancePercent = 20.0,
+    double overcutPercent = 30.0);
 
 // Batch compute for all levels in a part
 std::vector<LevelMachiningToolpaths> computeAllPartMachiningToolpaths(

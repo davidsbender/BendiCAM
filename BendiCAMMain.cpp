@@ -406,6 +406,28 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     TreeCtrlPartsMachining = new wxTreeCtrl(TabMachining, wxID_ANY, wxDefaultPosition, wxDefaultSize,
         wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT|wxTR_HIDE_ROOT|wxTR_SINGLE);
     TreeCtrlPartsMachining->Bind(wxEVT_COMMAND_TREE_SEL_CHANGED, &BendiCAMFrame::OnTreeCtrlPartsMachiningSelChanged, this);
+
+    StaticBoxMachiningDisplay = new wxStaticBox(TabMachining, wxID_ANY, _("Display Options"));
+
+    auto createMachiningCheckBox = [this](const wxString& label) -> wxCheckBox* {
+        wxCheckBox* chk = new wxCheckBox(TabMachining, wxID_ANY, label);
+        chk->SetValue(true);
+        chk->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) {
+            if (PanelDrawing) PanelDrawing->Refresh();
+        });
+        return chk;
+    };
+
+    CheckBoxShowBossToolpaths   = createMachiningCheckBox(_("Boss toolpath (bossToolpaths)"));
+    CheckBoxShowClearedArea     = createMachiningCheckBox(_("Cleared area outline (requiredCoverage)"));
+    CheckBoxShowStockToolpath   = createMachiningCheckBox(_("Stock toolpath (material.toolPath)"));
+    CheckBoxShowStockOutline    = createMachiningCheckBox(_("Stock outline (material.outline)"));
+    CheckBoxShowStockCutZone    = createMachiningCheckBox(_("Stock cut zones (material.cutZone)"));
+    CheckBoxShowIslandOutline   = createMachiningCheckBox(_("Island outlines (island.outline)"));
+    CheckBoxShowIslandToolpath  = createMachiningCheckBox(_("Island toolpaths (island.toolPath)"));
+    CheckBoxShowIslandCutZone   = createMachiningCheckBox(_("Island cut zones (island.cutZone)"));
+    CheckBoxShowAllowedEnvelope = createMachiningCheckBox(_("Roaming envelope (allowedEnvelope)"));
+
     NotebookRight->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, &BendiCAMFrame::OnNotebookPageChanged, this);
 
     TabPartDef->Bind(wxEVT_SIZE, [this](wxSizeEvent& ev) {
@@ -437,6 +459,13 @@ BendiCAMFrame::BendiCAMFrame(wxWindow* parent,wxWindowID id)
     StaticTextToolOvercut->Reparent(PanelRight);
     TextCtrlToolRampAngle->Reparent(PanelRight);
     TextCtrlToolOvercut->Reparent(PanelRight);
+
+    StaticTextToolBossMargin = new wxStaticText(PanelRight, wxID_ANY, _("Boss Margin (%)"));
+    TextCtrlToolBossMargin = new wxTextCtrl(PanelRight, wxID_ANY, _T("20"), wxDefaultPosition, wxDefaultSize, wxTE_RIGHT);
+    TextCtrlToolBossMargin->Bind(wxEVT_TEXT, [this](wxCommandEvent&) {
+        if (PanelDrawing) PanelDrawing->Refresh();
+        MarkDirty();
+    });
 
     StaticBoxMaterial->Reparent(PanelRight);
     StaticTextMatTopHeight->Reparent(PanelRight);
@@ -563,12 +592,49 @@ void BendiCAMFrame::LayoutMachiningTab()
     int mh = TabMachining->GetClientSize().GetHeight();
     if (mw <= 20 || mh <= 20) return;
 
+    int boxW = mw - 8;
+    int dispH = 206;
+    int minPartsH = 60;
+    int partsH = 60;
+    if (mh - dispH - 10 < minPartsH) {
+        partsH = minPartsH;
+        dispH = std::max(60, mh - partsH - 10);
+    } else {
+        partsH = mh - dispH - 10;
+    }
+    int dispY = 4 + partsH + 6;
+
     if (StaticBoxPartsMachining) {
-        StaticBoxPartsMachining->SetSize(4, 4, mw - 8, mh - 8);
+        StaticBoxPartsMachining->SetSize(4, 4, boxW, partsH);
         StaticBoxPartsMachining->Lower();
     }
     if (TreeCtrlPartsMachining) {
-        TreeCtrlPartsMachining->SetSize(14, 24, mw - 28, mh - 36);
+        TreeCtrlPartsMachining->SetSize(14, 24, boxW - 20, std::max(20, partsH - 32));
+    }
+
+    if (StaticBoxMachiningDisplay) {
+        StaticBoxMachiningDisplay->SetSize(4, dispY, boxW, mh - dispY - 4);
+        StaticBoxMachiningDisplay->Lower();
+
+        wxCheckBox* checkBoxes[] = {
+            CheckBoxShowBossToolpaths,
+            CheckBoxShowClearedArea,
+            CheckBoxShowStockToolpath,
+            CheckBoxShowStockOutline,
+            CheckBoxShowStockCutZone,
+            CheckBoxShowIslandOutline,
+            CheckBoxShowIslandToolpath,
+            CheckBoxShowIslandCutZone,
+            CheckBoxShowAllowedEnvelope
+        };
+
+        int curY = dispY + 18;
+        for (wxCheckBox* chk : checkBoxes) {
+            if (chk) {
+                chk->SetSize(14, curY, boxW - 20, 20);
+                curY += 20;
+            }
+        }
     }
 }
 
@@ -580,7 +646,7 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
     int rh = PanelRight->GetClientSize().GetHeight();
     if (rw <= 20 || rh <= 20) return;
 
-    int neededBelow = 253;
+    int neededBelow = 279;
     int notebookY = 4;
     int notebookH = 305;
     if (rh - neededBelow - notebookY > 305) {
@@ -595,7 +661,7 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
     LayoutMachiningTab();
 
     int toolY = notebookY + notebookH + 6;
-    int toolH = 155;
+    int toolH = 181;
     if (StaticBoxTool) {
         StaticBoxTool->SetSize(4, toolY, rw - 8, toolH);
         StaticBoxTool->Lower();
@@ -636,6 +702,11 @@ void BendiCAMFrame::OnRightPanelSize(wxSizeEvent& event)
 
         if (StaticTextToolOvercut) StaticTextToolOvercut->SetSize(midX + 4, r4Y + 2, rightLabelW, 20);
         if (TextCtrlToolOvercut) TextCtrlToolOvercut->SetSize(midX + 4 + rightLabelW, r4Y, std::max(10, (4 + boxW - 8) - (midX + 4 + rightLabelW)), 22);
+
+        // Row 5: Boss Margin (%)
+        int r5Y = toolY + 122;
+        if (StaticTextToolBossMargin) StaticTextToolBossMargin->SetSize(14, r5Y + 2, leftLabelW, 20);
+        if (TextCtrlToolBossMargin) TextCtrlToolBossMargin->SetSize(14 + leftLabelW, r5Y, std::max(10, midX - (14 + leftLabelW) - 4), 22);
     }
 
     int matY = toolY + toolH + 6;
@@ -1239,6 +1310,10 @@ bool BendiCAMFrame::OpenProject(const wxString& projectPath)
             TextCtrlToolStepover->SetValue(wxString::Format(wxT("%.1f"), tObj["stepover"].numVal));
         if (tObj["rampAngle"].type == JsonValue::NUMBER)
             TextCtrlToolRampAngle->SetValue(wxString::Format(wxT("%.1f"), tObj["rampAngle"].numVal));
+        if (tObj["bossMargin"].type == JsonValue::NUMBER && TextCtrlToolBossMargin)
+            TextCtrlToolBossMargin->SetValue(wxString::Format(wxT("%.1f"), tObj["bossMargin"].numVal));
+        else if (TextCtrlToolBossMargin)
+            TextCtrlToolBossMargin->SetValue(wxT("20"));
     }
 
     // Restore Material Settings
@@ -1313,7 +1388,7 @@ void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
     double connTol = 0.1;
     TextCtrlConnTolerance->GetValue().ToDouble(&connTol);
 
-    double diameter = 2.0, rpm = 12000.0, feedXY = 500.0, feedZ = 250.0, stepdown = 1.0, stepover = 70.0, rampAngle = 20.0;
+    double diameter = 2.0, rpm = 12000.0, feedXY = 500.0, feedZ = 250.0, stepdown = 1.0, stepover = 70.0, rampAngle = 20.0, bossMargin = 20.0;
     double topHeight = 10.0, safeZ = 10.0;
 
     TextCtrlToolDiameter->GetValue().ToDouble(&diameter);
@@ -1323,6 +1398,7 @@ void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
     TextCtrlToolStepdown->GetValue().ToDouble(&stepdown);
     TextCtrlToolStepover->GetValue().ToDouble(&stepover);
     TextCtrlToolRampAngle->GetValue().ToDouble(&rampAngle);
+    if (TextCtrlToolBossMargin) TextCtrlToolBossMargin->GetValue().ToDouble(&bossMargin);
     TextCtrlMatTopHeight->GetValue().ToDouble(&topHeight);
     TextCtrlSafeZ->GetValue().ToDouble(&safeZ);
 
@@ -1340,7 +1416,8 @@ void BendiCAMFrame::OnSaveProject(wxCommandEvent& event)
     out << "    \"feedZ\": " << feedZ << ",\n";
     out << "    \"stepdown\": " << stepdown << ",\n";
     out << "    \"stepover\": " << stepover << ",\n";
-    out << "    \"rampAngle\": " << rampAngle << "\n";
+    out << "    \"rampAngle\": " << rampAngle << ",\n";
+    out << "    \"bossMargin\": " << bossMargin << "\n";
     out << "  },\n";
     out << "  \"material\": {\n";
     out << "    \"topHeight\": " << topHeight << ",\n";
@@ -1985,10 +2062,14 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
 
         double toolDiameter = 2.0;
         double overcutPercent = 30.0;
+        double bossMarginPercent = 20.0;
         if (TextCtrlToolDiameter) TextCtrlToolDiameter->GetValue().ToDouble(&toolDiameter);
         if (TextCtrlToolOvercut) TextCtrlToolOvercut->GetValue().ToDouble(&overcutPercent);
+        if (TextCtrlToolBossMargin) TextCtrlToolBossMargin->GetValue().ToDouble(&bossMarginPercent);
         if (toolDiameter <= 1e-4) toolDiameter = 2.0;
         if (overcutPercent < 0.0) overcutPercent = 30.0;
+        if (bossMarginPercent < 0.0) bossMarginPercent = 20.0;
+        if (bossMarginPercent > 100.0) bossMarginPercent = 100.0;
 
         m_partShapePaths.clear();
         m_procPaths = SelectedShapeProcessingPaths();
@@ -2018,7 +2099,7 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
 
                 if (targetLevel) {
                     m_machPaths = computeMachiningLevelPaths(m_dxfModel, part, *targetLevel, m_partShapePaths);
-                    m_levelMachiningPaths = computeLevelMachiningToolpaths(m_dxfModel, part, m_machPaths);
+                    m_levelMachiningPaths = computeLevelMachiningToolpaths(m_dxfModel, part, m_machPaths, toolDiameter, bossMarginPercent, overcutPercent);
 
                     // Render the machining level paths and their vertices
                     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
@@ -2065,81 +2146,110 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                             }
                         };
 
+                        bool showStockOutline    = !CheckBoxShowStockOutline || CheckBoxShowStockOutline->IsChecked();
+                        bool showStockCutZone    = !CheckBoxShowStockCutZone || CheckBoxShowStockCutZone->IsChecked();
+                        bool showStockToolpath   = !CheckBoxShowStockToolpath || CheckBoxShowStockToolpath->IsChecked();
+                        bool showIslandOutline   = !CheckBoxShowIslandOutline || CheckBoxShowIslandOutline->IsChecked();
+                        bool showIslandCutZone   = !CheckBoxShowIslandCutZone || CheckBoxShowIslandCutZone->IsChecked();
+                        bool showIslandToolpath  = !CheckBoxShowIslandToolpath || CheckBoxShowIslandToolpath->IsChecked();
+                        bool showAllowedEnvelope = !CheckBoxShowAllowedEnvelope || CheckBoxShowAllowedEnvelope->IsChecked();
+                        bool showClearedArea     = !CheckBoxShowClearedArea || CheckBoxShowClearedArea->IsChecked();
+                        bool showBossToolpaths   = !CheckBoxShowBossToolpaths || CheckBoxShowBossToolpaths->IsChecked();
+
                         // 1. Material (lower shape) paths: Dark Amber & Dark Blue
                         if (m_machPaths.material) {
                             const auto& mat = m_machPaths.material->material;
-                            drawPaths(mat.outline, colDarkAmber, true);
-                            drawPaths(mat.cutZoneInner, colDarkAmber, true);
-                            drawPaths(mat.toolPath, colDarkBlue, true);
-                            drawPaths(mat.cutZoneOuter, colDarkAmber, true);
-
-                            drawVertices(mat.outline, colDarkAmber);
-                            drawVertices(mat.cutZoneInner, colDarkAmber);
-                            drawVertices(mat.toolPath, colDarkBlue);
-                            drawVertices(mat.cutZoneOuter, colDarkAmber);
+                            if (showStockOutline) {
+                                drawPaths(mat.outline, colDarkAmber, true);
+                                drawVertices(mat.outline, colDarkAmber);
+                            }
+                            if (showStockCutZone) {
+                                drawPaths(mat.cutZoneInner, colDarkAmber, true);
+                                drawPaths(mat.cutZoneOuter, colDarkAmber, true);
+                                drawVertices(mat.cutZoneInner, colDarkAmber);
+                                drawVertices(mat.cutZoneOuter, colDarkAmber);
+                            }
+                            if (showStockToolpath) {
+                                drawPaths(mat.toolPath, colDarkBlue, true);
+                                drawVertices(mat.toolPath, colDarkBlue);
+                            }
                         }
 
                         // 2. All Shapes (islands) on this level: Light Amber & Light Blue
                         for (const auto* island : m_machPaths.islands) {
                             if (!island) continue;
                             const auto& isl = island->island;
-                            drawPaths(isl.outline, colLightAmber, true);
-                            drawPaths(isl.cutZone, colLightAmber, true);
-                            drawPaths(isl.toolPath, colLightBlue, true);
-
-                            drawVertices(isl.outline, colLightAmber);
-                            drawVertices(isl.cutZone, colLightAmber);
-                            drawVertices(isl.toolPath, colLightBlue);
+                            if (showIslandOutline) {
+                                drawPaths(isl.outline, colLightAmber, true);
+                                drawVertices(isl.outline, colLightAmber);
+                            }
+                            if (showIslandCutZone) {
+                                drawPaths(isl.cutZone, colLightAmber, true);
+                                drawVertices(isl.cutZone, colLightAmber);
+                            }
+                            if (showIslandToolpath) {
+                                drawPaths(isl.toolPath, colLightBlue, true);
+                                drawVertices(isl.toolPath, colLightBlue);
+                            }
                         }
 
                         // 3. Dual-Domain Level Floor Clearing Zones
                         if (!m_levelMachiningPaths.clearingZones.empty()) {
                             const auto& zones = m_levelMachiningPaths.clearingZones;
-                            wxColour colReqCoverage(240, 130, 0);     // Solid Warm Amber for mandatory floor coverage
+                            wxColour colReqCoverageOuter(0, 120, 230); // Solid Vibrant Blue for mandatory included floor coverage
+                            wxColour colReqCoverageHole(220, 50, 50);  // Solid Vibrant Red for excluded boss cutouts
                             wxColour colAllowedOuter(80, 180, 240);   // Dashed Soft Cyan for allowed outer roaming boundary
-                            wxColour colAllowedObstacle(230, 80, 80); // Dashed Soft Red for hard boss avoidance boundaries (+R)
+                            wxColour colAllowedObstacle(230, 80, 80); // Dashed Soft Red for boss avoidance boundary (outline + margin)
 
                             // A. Allowed Roaming Envelope (Dashed Guides)
-                            if (!zones.allowedEnvelope.outerBoundaries.empty()) {
-                                drawPaths(zones.allowedEnvelope.outerBoundaries, colAllowedOuter, true);
-                            }
-                            if (!zones.allowedEnvelope.holeBoundaries.empty()) {
-                                drawPaths(zones.allowedEnvelope.holeBoundaries, colAllowedObstacle, true);
+                            if (showAllowedEnvelope) {
+                                if (!zones.allowedEnvelope.outerBoundaries.empty()) {
+                                    drawPaths(zones.allowedEnvelope.outerBoundaries, colAllowedOuter, true);
+                                }
+                                if (!zones.allowedEnvelope.holeBoundaries.empty()) {
+                                    drawPaths(zones.allowedEnvelope.holeBoundaries, colAllowedObstacle, true);
+                                }
                             }
 
-                            // B. Required Target Coverage (Solid Amber)
-                            if (!zones.requiredCoverage.outerBoundaries.empty()) {
-                                drawPaths(zones.requiredCoverage.outerBoundaries, colReqCoverage, false);
-                                drawVertices(zones.requiredCoverage.outerBoundaries, colReqCoverage);
-                            }
-                            if (!zones.requiredCoverage.holeBoundaries.empty()) {
-                                drawPaths(zones.requiredCoverage.holeBoundaries, colReqCoverage, false);
-                                drawVertices(zones.requiredCoverage.holeBoundaries, colReqCoverage);
+                            // B. Required Target Coverage (Solid Lines with color-matched vertex rims)
+                            if (showClearedArea) {
+                                if (!zones.requiredCoverage.outerBoundaries.empty()) {
+                                    drawPaths(zones.requiredCoverage.outerBoundaries, colReqCoverageOuter, false);
+                                    drawVertices(zones.requiredCoverage.outerBoundaries, colReqCoverageOuter);
+                                }
+                                if (!zones.requiredCoverage.holeBoundaries.empty()) {
+                                    drawPaths(zones.requiredCoverage.holeBoundaries, colReqCoverageHole, false);
+                                    drawVertices(zones.requiredCoverage.holeBoundaries, colReqCoverageHole);
+                                }
                             }
                         } else {
                             // Fallback: Legacy Derived Machining Pockets
-                            wxColour colMachPocket(0, 140, 240); // Solid Vibrant Blue for resulting pocket boundary
-                            wxColour colMachIsland(240, 120, 0); // Solid Warm Amber for resulting island boundary
-                            for (const auto& pocket : m_levelMachiningPaths.pockets) {
-                                if (!pocket.outerBoundary.empty()) {
-                                    std::vector<AnalyticalPath> outerList = { pocket.outerBoundary };
-                                    drawPaths(outerList, colMachPocket, false);
-                                    drawVertices(outerList, colMachPocket);
-                                }
-                                if (!pocket.islandBoundaries.empty()) {
-                                    drawPaths(pocket.islandBoundaries, colMachIsland, false);
-                                    drawVertices(pocket.islandBoundaries, colMachIsland);
+                            if (showClearedArea) {
+                                wxColour colMachPocket(0, 140, 240); // Solid Vibrant Blue for resulting pocket boundary
+                                wxColour colMachIsland(240, 120, 0); // Solid Warm Amber for resulting island boundary
+                                for (const auto& pocket : m_levelMachiningPaths.pockets) {
+                                    if (!pocket.outerBoundary.empty()) {
+                                        std::vector<AnalyticalPath> outerList = { pocket.outerBoundary };
+                                        drawPaths(outerList, colMachPocket, false);
+                                        drawVertices(outerList, colMachPocket);
+                                    }
+                                    if (!pocket.islandBoundaries.empty()) {
+                                        drawPaths(pocket.islandBoundaries, colMachIsland, false);
+                                        drawVertices(pocket.islandBoundaries, colMachIsland);
+                                    }
                                 }
                             }
                         }
 
                         // 4. Concrete Boss Outline Milling Toolpaths (Solid Vibrant Blue Lines)
-                        wxColour colMachBoss(0, 140, 240); // Solid Vibrant Blue
-                        for (const auto& bossPath : m_levelMachiningPaths.bossToolpaths) {
-                            if (!bossPath.empty()) {
-                                std::vector<AnalyticalPath> bossList = { bossPath };
-                                drawPaths(bossList, colMachBoss, false);
-                                drawVertices(bossList, colMachBoss);
+                        if (showBossToolpaths) {
+                            wxColour colMachBoss(0, 140, 240); // Solid Vibrant Blue
+                            for (const auto& bossPath : m_levelMachiningPaths.bossToolpaths) {
+                                if (!bossPath.empty()) {
+                                    std::vector<AnalyticalPath> bossList = { bossPath };
+                                    drawPaths(bossList, colMachBoss, false);
+                                    drawVertices(bossList, colMachBoss);
+                                }
                             }
                         }
                     }

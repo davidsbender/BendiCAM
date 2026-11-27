@@ -61,3 +61,20 @@ When a boss toolpath clips against a material floor boundary (e.g. where a boss 
 
 - Investigate if and how precompiled wxWidgets libraries can be integrated into the build configuration (Code::Blocks / MinGW Makefile).
 - Enables building and developing BendiCAM on machines where wxWidgets source trees are not present.
+
+---
+
+## Margins
+
+### allowedEnvelope
+
+Element: [Boss 1 outline] -> Operation: [offset outwards by avoidance margin] -> Element: [Boss 1 allowed envelope (hole, outside is allowed)]
+Element: [Boss 2 outline] -> Operation: [offset outwards by avoidance margin] -> Element: [Boss 2 allowed envelope (hole, outside is allowed)]
+...etc. for all bosses on stock...
+
+Element: [Stock outline] -> Operation: [offset outwards by air margin] -> Element: [Stock allowed envelope (area, inside is allowed)]
+
+### requiredCoverage
+
+Element: [Boss 1 outline] -> Operation: [offset outwards by (tool diameter - overcut)] -> Element: [Boss 1 required envelope (hole, outside is required)]
+Element: [Boss 2 outline] -> Operation: [offset outwards by (tool diameter - overcut)] -> Element: [Boss 2 required envelope (hole, outside is required)]

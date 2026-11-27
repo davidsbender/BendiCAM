@@ -161,8 +161,12 @@ The 2D drawing viewport automatically adapts its rendering depending on whether 
 | | Material Toolpath | Material Floor | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
 | | Level Shapes Outline / Cut Zones | Islands | Light Amber (`#FFAF28`) | `wxColour(255, 175, 40)` |
 | | Level Shapes Toolpath | Islands | Light Blue (`#4182F5`) | `wxColour(65, 130, 245)` |
-| | Derived Pocket Outer Boundary | Cleared Floor Limit | Solid Vibrant Blue | `wxColour(0, 140, 240)` |
-| | Derived Pocket Island Boundary | Boss Obstacle Limit | Solid Warm Amber | `wxColour(240, 120, 0)` |
+| | Required Coverage Outer Boundary | Included Target Floor | Solid Vibrant Blue | `wxColour(0, 120, 230)` |
+| | Required Coverage Hole Boundary | Excluded Boss Cutout | Solid Vibrant Red | `wxColour(220, 50, 50)` |
+| | Allowed Envelope Outer Boundary | Air Roaming Limit | Dashed Soft Cyan | `wxColour(80, 180, 240)` |
+| | Allowed Envelope Hole Boundary | Boss Avoidance Limit | Dashed Soft Red | `wxColour(230, 80, 80)` |
+| | Derived Pocket Outer Boundary | Legacy Cleared Floor | Solid Vibrant Blue | `wxColour(0, 140, 240)` |
+| | Derived Pocket Island Boundary | Legacy Boss Limit | Solid Warm Amber | `wxColour(240, 120, 0)` |
 | **Part Definition Mode** | Primary Shape Outline / Cut Zones | Selected Island | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |
 | | Primary Shape Toolpath | Selected Island | Dark Blue (`#0000B4`) | `wxColour(0, 0, 180)` |
 | | Material Base Outline / Cut Zones | Floor | Dark Amber (`#E66400`) | `wxColour(230, 100, 0)` |

@@ -12,7 +12,8 @@
     "feedZ": 250,
     "stepdown": 1,
     "stepover": 70,
-    "rampAngle": 20
+    "rampAngle": 20,
+    "bossMargin": 20
   },
   "material": {
     "topHeight": 10,

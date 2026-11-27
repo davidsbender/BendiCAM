@@ -196,6 +196,18 @@ class BendiCAMFrame: public wxFrame
         wxPanel* TabMachining = nullptr;
         wxStaticBox* StaticBoxPartsMachining = nullptr;
         wxTreeCtrl* TreeCtrlPartsMachining = nullptr;
+        wxStaticBox* StaticBoxMachiningDisplay = nullptr;
+        wxCheckBox* CheckBoxShowBossToolpaths = nullptr;
+        wxCheckBox* CheckBoxShowClearedArea = nullptr;
+        wxCheckBox* CheckBoxShowStockToolpath = nullptr;
+        wxCheckBox* CheckBoxShowStockOutline = nullptr;
+        wxCheckBox* CheckBoxShowStockCutZone = nullptr;
+        wxCheckBox* CheckBoxShowIslandOutline = nullptr;
+        wxCheckBox* CheckBoxShowIslandToolpath = nullptr;
+        wxCheckBox* CheckBoxShowIslandCutZone = nullptr;
+        wxCheckBox* CheckBoxShowAllowedEnvelope = nullptr;
+        wxStaticText* StaticTextToolBossMargin = nullptr;
+        wxTextCtrl* TextCtrlToolBossMargin = nullptr;
 
         bool m_isDirty = false;
         wxString m_loadedFileName;

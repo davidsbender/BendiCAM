@@ -776,73 +776,6 @@ bool findPrimitiveIntersectionBounded(const PathPrimitive& p1, const PathPrimiti
     }
 }
 
-static bool isIntersectionWithinBounds(const PathPrimitive& p1, const PathPrimitive& p2, const DxfPoint& pt, double offsetDist) {
-    double absDist = std::abs(offsetDist);
-    double maxDistMargin = std::max(5.0 * absDist, 10.0);
-
-    if (pointDist(pt, p1.endPt) > maxDistMargin || pointDist(pt, p2.startPt) > maxDistMargin) {
-        return false;
-    }
-
-    double t1 = 0.0;
-    if (p1.type == PrimitiveType::LINE) {
-        double dx = p1.endPt.x - p1.startPt.x;
-        double dy = p1.endPt.y - p1.startPt.y;
-        double lenSq = dx * dx + dy * dy;
-        if (lenSq < 1e-12) return false;
-        t1 = ((pt.x - p1.startPt.x) * dx + (pt.y - p1.startPt.y) * dy) / lenSq;
-    } else {
-        double a1 = std::atan2(p1.startPt.y - p1.center.y, p1.startPt.x - p1.center.x);
-        double a2 = std::atan2(p1.endPt.y - p1.center.y, p1.endPt.x - p1.center.x);
-        double a = std::atan2(pt.y - p1.center.y, pt.x - p1.center.x);
-        double da = a - a1;
-        double sweep = a2 - a1;
-        if (p1.isCCW) {
-            while (da < 0.0) da += 2.0 * M_PI;
-            while (sweep <= 0.0) sweep += 2.0 * M_PI;
-            t1 = (sweep > 1e-9) ? da / sweep : 1.0;
-        } else {
-            while (da > 0.0) da -= 2.0 * M_PI;
-            while (sweep >= 0.0) sweep -= 2.0 * M_PI;
-            t1 = (std::abs(sweep) > 1e-9) ? da / sweep : 1.0;
-        }
-    }
-
-    double t2 = 0.0;
-    if (p2.type == PrimitiveType::LINE) {
-        double dx = p2.endPt.x - p2.startPt.x;
-        double dy = p2.endPt.y - p2.startPt.y;
-        double lenSq = dx * dx + dy * dy;
-        if (lenSq < 1e-12) return false;
-        t2 = ((pt.x - p2.startPt.x) * dx + (pt.y - p2.startPt.y) * dy) / lenSq;
-    } else {
-        double a1 = std::atan2(p2.startPt.y - p2.center.y, p2.startPt.x - p2.center.x);
-        double a2 = std::atan2(p2.endPt.y - p2.center.y, p2.endPt.x - p2.center.x);
-        double a = std::atan2(pt.y - p2.center.y, pt.x - p2.center.x);
-        double da = a - a1;
-        double sweep = a2 - a1;
-        if (p2.isCCW) {
-            while (da < 0.0) da += 2.0 * M_PI;
-            while (sweep <= 0.0) sweep += 2.0 * M_PI;
-            t2 = (sweep > 1e-9) ? da / sweep : 0.0;
-        } else {
-            while (da > 0.0) da -= 2.0 * M_PI;
-            while (sweep >= 0.0) sweep -= 2.0 * M_PI;
-            t2 = (std::abs(sweep) > 1e-9) ? da / sweep : 0.0;
-        }
-    }
-
-    if (t1 > 1.0 + 1e-3 && t2 < -1e-3) {
-        return false;
-    }
-
-    if (t1 < -0.5 || t1 > 2.0 || t2 < -1.0 || t2 > 1.5) {
-        return false;
-    }
-
-    return true;
-}
-
 AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist) {
     AnalyticalPath rawOffset;
     rawOffset.trace = inPath.trace;
@@ -871,7 +804,7 @@ AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist
     std::vector<bool> isRollAround(m, false);
     std::vector<PathPrimitive> rollAroundArcs(m);
 
-    // Pass 1: Resolve all corner points (intersections first, then roll-around arcs if genuinely convex)
+    // Pass 1: Resolve all corner points between adjacent primitives
     for (size_t i = 0; i < m; ++i) {
         size_t nextIdx = (i + 1) % m;
         size_t origI = origIndices[i];
@@ -880,35 +813,18 @@ AnalyticalPath offsetAnalyticalPathRaw(const AnalyticalPath& inPath, double dist
         PathPrimitive prim = path[origI];
         PathPrimitive nextPrim = path[origNextI];
 
-        DxfPoint intersectPt;
-        bool foundIntersect = false;
-
-        for (size_t fwd = 1; fwd < m - 1; ++fwd) {
-            size_t candIdx = (i + fwd) % m;
-            DxfPoint inter;
-            if (findPrimitiveIntersection(validOffsetPrims[i], validOffsetPrims[candIdx], inter)) {
-                if (isIntersectionWithinBounds(validOffsetPrims[i], validOffsetPrims[candIdx], inter, dist)) {
-                    validOffsetPrims[i].endPt = inter;
-                    validOffsetPrims[candIdx].startPt = inter;
-                    foundIntersect = true;
-                    break;
-                }
-            }
-        }
-
-        if (foundIntersect) {
-            isRollAround[i] = false;
+        bool rollAround = checkCornerConvexity(prim, nextPrim, dist);
+        if (rollAround) {
+            isRollAround[i] = true;
+            rollAroundArcs[i] = createRollAroundArc(prim, nextPrim, validOffsetPrims[i], dist);
         } else {
-            bool rollAround = checkCornerConvexity(prim, nextPrim, dist);
-            if (rollAround) {
-                isRollAround[i] = true;
-                rollAroundArcs[i] = createRollAroundArc(prim, nextPrim, validOffsetPrims[i], dist);
+            isRollAround[i] = false;
+            DxfPoint intersectPt;
+            if (findPrimitiveIntersection(validOffsetPrims[i], validOffsetPrims[nextIdx], intersectPt)) {
+                validOffsetPrims[i].endPt = intersectPt;
+                validOffsetPrims[nextIdx].startPt = intersectPt;
             } else {
-                isRollAround[i] = false;
-                if (findPrimitiveIntersection(validOffsetPrims[i], validOffsetPrims[nextIdx], intersectPt)) {
-                    validOffsetPrims[i].endPt = intersectPt;
-                    validOffsetPrims[nextIdx].startPt = intersectPt;
-                }
+                validOffsetPrims[nextIdx].startPt = validOffsetPrims[i].endPt;
             }
         }
     }
