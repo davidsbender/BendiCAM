@@ -28,10 +28,13 @@ struct LevelMachiningToolpaths {
     // Derived discrete pockets to clear on this level floor
     std::vector<MachiningPocket> pockets;
 
+    // Concrete boss outline milling toolpaths (e.g. root bosses on datum floor)
+    std::vector<AnalyticalPath> bossToolpaths;
+
     // Infill passes (optional concentric or raster toolpaths)
     std::vector<AnalyticalPath> infillToolPaths;
 
-    bool empty() const { return pockets.empty(); }
+    bool empty() const { return pockets.empty() && bossToolpaths.empty(); }
 };
 
 // Orchestrates boolean subtraction of all islands from the material boundary for a level

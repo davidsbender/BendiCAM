@@ -2106,6 +2106,15 @@ void BendiCAMFrame::OnPanelPaint(wxPaintEvent& event)
                                 drawVertices(pocket.islandBoundaries, colMachIsland);
                             }
                         }
+
+                        // 4. Concrete Boss Outline Milling Toolpaths (Solid Lines, e.g. root bosses on datum floor)
+                        for (const auto& bossPath : m_levelMachiningPaths.bossToolpaths) {
+                            if (!bossPath.empty()) {
+                                std::vector<AnalyticalPath> bossList = { bossPath };
+                                drawPaths(bossList, colMachPocket, false);
+                                drawVertices(bossList, colMachPocket);
+                            }
+                        }
                     }
                 }
             } else {

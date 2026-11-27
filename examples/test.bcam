@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "cadFile": "C:\\Users\\david\\Desktop\\BendiCAM\\examples\\test.dxf",
+  "settings": {
+    "closeMatchingEndpoints": true,
+    "matchingTolerance": 0.1
+  },
+  "tool": {
+    "diameter": 2,
+    "rpm": 12000,
+    "feedXY": 500,
+    "feedZ": 250,
+    "stepdown": 1,
+    "stepover": 70,
+    "rampAngle": 20
+  },
+  "material": {
+    "topHeight": 10,
+    "safeZ": 10
+  },
+  "layers": [
+    {
+      "name": "0",
+      "visible": true
+    }
+  ],
+  "parts": [
+    {
+      "id": 1,
+      "name": "Part 1 (6 shape(s))",
+      "shapes": [
+        {
+          "shapeId": 1,
+          "depth": 2,
+          "entityIndices": [20, 21, 22, 23]
+        },
+        {
+          "shapeId": 2,
+          "depth": 4,
+          "entityIndices": [0, 1, 2, 3]
+        },
+        {
+          "shapeId": 3,
+          "depth": 8,
+          "entityIndices": [4, 5, 6, 7]
+        },
+        {
+          "shapeId": 4,
+          "depth": 8,
+          "entityIndices": [12, 13, 14, 15]
+        },
+        {
+          "shapeId": 5,
+          "depth": 6,
+          "entityIndices": [16, 17, 18, 19]
+        },
+        {
+          "shapeId": 6,
+          "depth": 4,
+          "entityIndices": [8, 9, 10, 11]
+        }
+      ]
+    }
+  ]
+}

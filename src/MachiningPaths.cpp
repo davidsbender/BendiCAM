@@ -13,6 +13,16 @@ LevelMachiningToolpaths computeLevelMachiningToolpaths(
     result.belowShapeId = levelPaths.belowShapeId;
 
     if (!levelPaths.material || levelPaths.material->material.toolPath.empty()) {
+        // No floor/material shape below: this level's shapes are root bosses on the datum bed (Z = 0)
+        for (const auto* island : levelPaths.islands) {
+            if (!island || island->island.toolPath.empty()) continue;
+            for (const auto& bossLoop : island->island.toolPath) {
+                if (bossLoop.size() < 2) continue;
+                AnalyticalPath cleanBoss = bossLoop;
+                ensureLoopOrientation(cleanBoss, true);
+                result.bossToolpaths.push_back(cleanBoss);
+            }
+        }
         return result;
     }
 
